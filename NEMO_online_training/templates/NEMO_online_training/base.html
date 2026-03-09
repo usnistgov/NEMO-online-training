@@ -1,0 +1,166 @@
+{% load static %}
+{% load custom_tags_and_filters %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        {# This meta-tag forcefully disables 'compatibility mode' in Internet Explorer because it causes rendering problems. #}
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta charset="UTF-8">
+        <meta name="application-name" content="NEMO">
+        <meta name="author" content="Center for Nanoscale Science and Technology">
+        <meta name="description"
+              content="NEMO allows facility users to make tool reservations, control access to tools in their facility, and streamline logistics and communication">
+        <meta name="keywords"
+              content="logistics, operations, nano-technology, nano-fabrication, reservation, tool control, status">
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+        {# Snippet to prevent clickjacking. Taken from https://www.codemagi.com/blog/post/194 #}
+        <style id="antiClickjack">
+		body
+		{
+			display: none !important;
+		}
+
+        </style>
+        <script type="text/javascript">
+		if(self === top)
+		{
+			let antiClickjack = document.getElementById("antiClickjack");
+			antiClickjack.parentNode.removeChild(antiClickjack);
+		}
+		else
+        {
+			top.location = self.location;
+        }
+
+        </script>
+        {% block head %}
+            {# jQuery #}
+            <script type="text/javascript" src="{% static "jquery.min.js" %}"></script>
+            {# Bootstrap #}
+            <script type="text/javascript" src="{% static "bootstrap/js/bootstrap.min.js" %}"></script>
+            <link rel="stylesheet" type="text/css" href="{% static "bootstrap/css/bootstrap.min.css" %}" />
+            <link rel="stylesheet" type="text/css" href="{% static "bootstrap/css/bootstrap-theme.min.css" %}" />
+            {# Typeahead #}
+            <script type="text/javascript" src="{% static "typeahead.jquery.min.js" %}"></script>
+        {% endblock %}
+        {# NEMO #}
+        <link rel="shortcut icon" type="image/x-icon" href="{% static 'favicon.ico' %}" />
+        <script type="text/javascript" src="{% static "nemo.js" %}"></script>
+        <link rel="stylesheet" type="text/css" href="{% static "nemo.css" %}" />
+        {% block extrahead %}{% endblock %}
+        <title>
+            {% block title %}{% endblock %}
+        </title>
+    </head>
+    <body>
+        <a class="sr-only sr-only-focusable" href="#main-content">Skip to main content</a>
+        <nav class="navbar navbar-default navbar-static-top" role="navigation">
+            <div class="container">
+                <div class="navbar-header">
+                    <span class="navbar-brand">{{ site_title }}</span>
+                </div>
+            </div>
+        </nav>
+        {% block body %}
+            <div class="body-container">
+                <div id="loading-div-page" class="spinner-full-page spinner-container" style="display: none">
+                    <div class="glyphicon glyphicon-repeat normal-right-spinner"></div>
+                </div>
+                <div class="container" id="main-content">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{% if message.level_tag == 'error' %}danger{% else %}{{ message.level_tag }}{% endif %} alert-dismissible show-on-load"
+                                 {% if message.extra_tags %}{{ message.extra_tags }}{% endif %}
+                                 style="display: none">
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Modal close button">&times;</button>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    {# Content goes here #}
+                    {% block content %}{% endblock %}
+                    {% spaceless %}
+                        <div class="modal-footer">
+                            {% block footer %}{% endblock %}
+                        </div>
+                    {% endspaceless %}
+                </div>
+                {% block extra_whitespace %}<div style="height: 200px"></div>{% endblock %}
+            </div>
+            {% include 'base/footer.html' %}
+        {% endblock %}
+        {# This division is used to display dialog messages via Bootstrap. #}
+        <div class="modal fade" id="dialog" tabindex="-1">
+            <div class="modal-dialog" role="dialog" aria-modal="true">
+                <div class="modal-content"></div>
+            </div>
+        </div>
+        <script>
+            function csrf_token()
+            {
+                return '{{ csrf_token }}';
+            }
+            function show_spinner(form_to_check)
+            {
+                if (form_to_check !== undefined)
+                {
+                    if (!form_to_check.checkValidity()) return
+                }
+                $('body').css({overflow: 'hidden'});
+                $('#loading-div-page').show();
+            }
+            function hide_spinner()
+            {
+                $('body').css({overflow: 'initial'});
+                $('#loading-div-page').hide();
+            }
+            function show_alerts()
+            {
+                let alert_users = $(".alert.show-on-load");
+                alert_users.each(function(index, element) {
+                    let speed = 4500;
+                    if ($(element).data('speed')) { speed = $(element).data('speed'); }
+                    let manual_only = $(element).data("trigger") === "manual";
+                    if (manual_only)
+                    {
+                        {# Manual dismissal only #}
+                        $(element).fadeTo(speed, 500);
+                    }
+                    else
+                    {
+                        $(element).fadeTo(speed, 500).slideUp(500, function () { $(element).slideUp(500); });
+                    }
+                });
+            }
+            $(window).on("resize", function() { collapse_navbar(); });
+            {# Add an event listener on load for scripts. UseCapture is False so this is executed a bit later #}
+            window.addEventListener("load", function ()
+            {
+                show_alerts();
+                collapse_navbar();
+
+                {# Add a global AJAX completion callback if sessions are able to timeout. #}
+                {# When an AJAX request receives an HTTP 403 (unauthorized) reply the user is #}
+                {# sent to the logoff page, which then redirects them back to the login page. #}
+                {% if logout_allowed %}
+                    $(document).ajaxComplete(function (event, xhr, status, error){navigate_to_login_on_session_expiration('{% url 'logout' %}', event, xhr, status, error)});
+                {% endif %}
+
+                {# Remove all size classes from the modal on close, to revert to default medium size #}
+                $("#dialog").on("hidden.bs.modal", function () {
+                    $("#dialog .modal-dialog").removeClass("modal-lg", "modal-sm");
+                });
+                {# Set described by on when showing modal #}
+                $("#dialog").on("shown.bs.modal", function () {
+                    $("#dialog .modal-dialog").attr("aria-labelledby", "modal-description-label");
+                });
+            }, false);
+
+            {# Hide spinner on page unload, just in case for some browser back button reloading it #}
+            window.addEventListener('unload', function()
+            {
+                hide_spinner();
+            });
+        </script>
+    </body>
+</html>

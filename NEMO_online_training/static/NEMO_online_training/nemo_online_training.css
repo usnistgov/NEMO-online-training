@@ -1,0 +1,18 @@
+.online-training-sub-table-wrapper
+{
+    background-color: #f9f9f9;
+    padding: 15px 20px;
+    border-left: 4px solid #337ab7;
+    margin: 5px 5px 5px 20px;
+    border-radius: 3px;
+}
+
+.online-training-sub-table-header th
+{
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #777;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #ddd !important;
+    border-top: none !important;
+}

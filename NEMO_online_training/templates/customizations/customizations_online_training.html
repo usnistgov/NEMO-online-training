@@ -1,0 +1,53 @@
+{% load custom_tags_and_filters %}
+<div class="panel-body">
+    <h3 class="customization-section-title">{{ customizations|get_item:"online_training_feature_name" }} settings</h3>
+    <form method="POST" action="{% url 'customize' 'online_training' %}" class="form-horizontal">
+        {% csrf_token %}
+        <div class="form-group">
+            <label class="control-label col-xs-3 col-md-2" for="online_training_feature_name">Feature name</label>
+            <div class="col-md-8 col-xs-9">
+                <input type="text"
+                       class="form-control"
+                       id="online_training_feature_name"
+                       name="online_training_feature_name"
+                       value="{{ customizations|get_item:"online_training_feature_name" }}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="control-label col-xs-3 col-md-2" for="online_training_link_validity_minutes">Link validity</label>
+            <div class="col-lg-3 col-md-4 col-xs-6">
+                <div class="input-group">
+                    <input type="number"
+                           min="1"
+                           step="1"
+                           id="online_training_link_validity_minutes"
+                           name="online_training_link_validity_minutes"
+                           class="form-control"
+                           value="{{ online_training_link_validity_minutes }}">
+                    <span class="input-group-addon">minutes</span>
+                </div>
+            </div>
+            <div class="col-lg-7 col-md-6 col-xs-12 help-block light-grey">
+                The number of minutes the link (to complete a training) is valid for.
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="control-label col-xs-3 col-md-2" for="online_training_user_unique_email">User email</label>
+            <div class="col-md-10 col-xs-9">
+                <input type="hidden" name="online_training_user_unique_email" value="off" />
+                <div class="checkbox">
+                    <label>
+                        <input name="online_training_user_unique_email"
+                               id="online_training_user_unique_email"
+                               type="checkbox"
+                               {% if online_training_user_unique_email == "enabled" %}checked{% endif %}
+                               value="enabled">
+                        Check this box to prevent duplicate email addresses for new users
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="customization-separation" style="margin-bottom: 15px"></div>
+        <div class="text-center">{% button type="save" value="Save settings" %}</div>
+    </form>
+</div>

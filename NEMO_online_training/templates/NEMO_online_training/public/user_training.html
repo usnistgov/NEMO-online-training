@@ -1,0 +1,52 @@
+{% extends user.is_authenticated|yesno:"base.html,NEMO_online_training/base.html" %}
+{% block title %}{{ online_training_user.online_training.name }}{% endblock %}
+{% block content %}
+    <div class="timer-container pull-right">
+        <h4>
+            Session expiring in: <span id="countdown">Loading...</span>
+        </h4>
+        <div id="timer-data" data-expires="{{ expires_at|date:'U' }}" style="display:none;"></div>
+    </div>
+    <h3>{{ online_training_user.online_training.name }}</h3>
+    {{ online_training_user.online_training.html_content|safe }}
+    <script>
+        function training_completed(data)
+        {
+            data = data || {};
+            data["completion_token"] = "{{ completion_token }}";
+            ajax_post("{% url 'public_online_training_complete_user_training' %}", data, function() {window.location.reload();}, ajax_failure_callback("There was a problem submitting your data."));
+        }
+
+        function update_timer(timer_interval_id)
+        {
+            const countdown = $('#countdown');
+            let expires_at = parseInt($('#timer-data').attr('data-expires'));
+
+            let now = Math.floor(Date.now() / 1000);
+            let time_left = expires_at - now;
+
+            if (time_left <= 0)
+            {
+                countdown.text("EXPIRED");
+                countdown.css('color', 'red');
+                clearInterval(timer_interval_id); // Stop the loop
+                return;
+            }
+
+            const hours = Math.floor(time_left / 3600);
+            const minutes = Math.floor((time_left % 3600) / 60);
+            const seconds = time_left % 60;
+
+            const hours_display = hours < 10 ? '0' + hours : hours;
+            const minutes_display = minutes < 10 ? '0' + minutes : minutes;
+            const seconds_display = seconds < 10 ? '0' + seconds : seconds;
+
+            countdown.text(hours_display + ":" + minutes_display + ":" + seconds_display);
+        }
+
+        window.addEventListener("load", function ()
+        {
+            update_timer(setInterval(update_timer, 1000));
+        });
+    </script>
+{% endblock %}

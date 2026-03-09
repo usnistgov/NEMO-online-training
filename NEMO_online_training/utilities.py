@@ -1,0 +1,7 @@
+from NEMO_online_training.apps import OnlineTrainingConfig
+
+ONLINE_TRAINING_NOTIFICATION_TYPE = "online_trainings"
+ONLINE_TRAINING_EMAIL_CATEGORY = OnlineTrainingConfig.get_plugin_id() + 1
+
+ONLINE_TRAINING_ACTION_EXTEND_ACCESS = "EXTEND_ACCESS"
+ONLINE_TRAINING_ACTION_SEND_EMAIL = "SEND_EMAIL"

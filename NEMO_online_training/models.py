@@ -1,0 +1,318 @@
+from datetime import timedelta
+
+from NEMO.constants import CHAR_FIELD_MEDIUM_LENGTH, CHAR_FIELD_SMALL_LENGTH
+from NEMO.models import BaseModel, Notification, SerializationByNameModel, User
+from NEMO.utilities import format_datetime, format_timedelta, get_full_url, send_mail
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
+from django.core.signing import TimestampSigner
+from django.db import models, transaction
+from django.db.models import BooleanField, Case, Count, F, Q, When
+from django.db.models.signals import post_save, pre_delete
+from django.dispatch import receiver
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+
+from NEMO_online_training.customization import OnlineTrainingCustomization
+from NEMO_online_training.fields import UserTypeFilterField
+from NEMO_online_training.utilities import (
+    ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
+    ONLINE_TRAINING_ACTION_SEND_EMAIL,
+    ONLINE_TRAINING_EMAIL_CATEGORY,
+    ONLINE_TRAINING_NOTIFICATION_TYPE,
+)
+
+
+class ProspectiveUser(BaseModel):
+    creation_time = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+    last_accessed = models.DateTimeField(null=True, blank=True)
+
+    _first_name = models.CharField(
+        verbose_name="First name", db_column="first_name", null=True, blank=True, max_length=CHAR_FIELD_SMALL_LENGTH
+    )
+    _last_name = models.CharField(
+        verbose_name="Last name", db_column="last_name", null=True, blank=True, max_length=CHAR_FIELD_SMALL_LENGTH
+    )
+    _email = models.EmailField(verbose_name="Email address", db_column="email", null=True, blank=True)
+
+    nemo_user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ["_first_name", "_last_name", "nemo_user__first_name", "nemo_user__last_name"]
+
+    @property
+    def first_name(self):
+        return self._first_name or self.nemo_user.first_name
+
+    @first_name.setter
+    def first_name(self, value):
+        self._first_name = value
+
+    @property
+    def last_name(self):
+        return self._last_name or self.nemo_user.last_name
+
+    @last_name.setter
+    def last_name(self, value):
+        self._last_name = value
+
+    @property
+    def email(self):
+        return self._email or self.nemo_user.email
+
+    @email.setter
+    def email(self, value):
+        self._email = value
+
+    def all_trainings_completed(self):
+        return not self.onlineusertraining_set.filter(end__isnull=True).exists()
+
+    def all_blocking_trainings_completed(self):
+        """
+        Blocking trainings are those that are marked as blocking and have a due date in the past.
+        """
+        now = timezone.now()
+        return not self.onlineusertraining_set.filter(
+            online_training__is_blocking=True, due_date__lt=now, end__isnull=True
+        ).exists()
+
+    def all_blocking_trainings_due(self):
+        return self.onlineusertraining_set.filter(
+            online_training__is_blocking=True, due_date__lt=timezone.now(), end__isnull=True
+        )
+
+    def get_name(self):
+        return self.first_name + " " + self.last_name
+
+    def all_incomplete_training_ids(self):
+        return list(self.onlineusertraining_set.filter(end__isnull=True).values_list("id", flat=True))
+
+    @staticmethod
+    def objects_with_trainings():
+        return (
+            ProspectiveUser.objects.annotate(
+                # Count all trainings linked to this user
+                total_trainings=Count("onlineusertraining"),
+                # Count only the trainings that have a completed date
+                completed_trainings=Count("onlineusertraining", filter=Q(onlineusertraining__end__isnull=False)),
+            )
+            .annotate(
+                # Compare the two counts to create the boolean
+                # Logic: total == completed AND total > 0
+                all_trainings_completed=Case(
+                    When(Q(total_trainings=F("completed_trainings")) & Q(total_trainings__gt=0), then=True),
+                    default=False,
+                    output_field=BooleanField(),
+                )
+            )
+            .prefetch_related("onlineusertraining_set")
+        )
+
+    @staticmethod
+    def create_from_nemo_user(nemo_user: User):
+        prospective_user, created = ProspectiveUser.objects.get_or_create(nemo_user=nemo_user)
+        if created:
+            prospective_user.save()
+        return prospective_user
+
+    def clean(self):
+        if OnlineTrainingCustomization.get_bool("online_training_user_unique_email"):
+            if ProspectiveUser.objects.filter(_email=self.email).exclude(id=self.id).exists():
+                raise ValidationError({"email": _("This email is already used by another user.")})
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"
+
+
+class OnlineTraining(SerializationByNameModel):
+    name = models.CharField(max_length=CHAR_FIELD_MEDIUM_LENGTH, unique=True)
+    enabled = models.BooleanField(
+        default=True, help_text=_("If unchecked, this training will not be available to users")
+    )
+    completion_time_limit = models.PositiveIntegerField(
+        default=120, help_text=_("The maximum time the user can take to complete the training on the page (in minutes)")
+    )
+    is_blocking = models.BooleanField(
+        default=False,
+        help_text=_(
+            "If checked, prevents the linked NEMO user from performing other actions until this training is completed"
+        ),
+    )
+    allow_self_enrollment = models.BooleanField(
+        default=False, help_text=_("Allow users to take this training without prior assignment.")
+    )
+    html_content = models.TextField(
+        null=True,
+        blank=True,
+        help_text=_(
+            'The HTML content of the training. Upon completion, call the js function: "training_completed(dict_data);" and pass any answers/data as a dictionary. The data will be stored in the database'
+        ),
+    )
+    creation_time = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class OnlineTrainingAction(BaseModel):
+    class ActionType(models.TextChoices):
+        EXTEND_ACCESS = ONLINE_TRAINING_ACTION_EXTEND_ACCESS, "Extend User Access Expiration"
+        SEND_EMAIL = ONLINE_TRAINING_ACTION_SEND_EMAIL, "Send Notification Email"
+
+    online_training = models.ForeignKey(OnlineTraining, on_delete=models.CASCADE)
+    action_type = models.CharField(max_length=CHAR_FIELD_SMALL_LENGTH, choices=ActionType.choices)
+    configuration = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Enter configuration as JSON. See <a href='https://github.com/usnistgov/NEMO-online-training?tab=readme-ov-file#usage' target='_blank'>this link</a> for more information."
+        ),
+    )
+    user_filter = UserTypeFilterField(
+        help_text=_(
+            "Select which users this action applies to. You can select 'All NEMO users', "
+            "specific user types, and/or new users (without NEMO accounts)."
+        ),
+        default="all_nemo,prospective",
+    )
+
+    class Meta:
+        ordering = ["action_type"]
+
+    def clean(self):
+        from NEMO_online_training.training_actions import action_handlers
+
+        if self.action_type not in action_handlers:
+            raise ValidationError(_(f"Invalid action type: {self.action_type}"))
+
+        handler = action_handlers[self.action_type]
+        handler.validate(self.configuration, self.user_filter)
+
+    def applies_to_user(self, prospective_user) -> bool:
+        field = UserTypeFilterField()
+        return field.applies_to_user(self.user_filter, prospective_user)
+
+    def __str__(self):
+        return f"{self.get_action_type_display()} for {self.online_training.name}"
+
+
+class OnlineUserTraining(BaseModel):
+    online_training = models.ForeignKey(OnlineTraining, on_delete=models.CASCADE)
+    prospective_user = models.ForeignKey(ProspectiveUser, on_delete=models.CASCADE)
+    due_date = models.DateTimeField(null=True, blank=True, help_text=_("The due date/time for the training"))
+    start = models.DateTimeField(null=True, blank=True, help_text=_("The date/time the training was started"))
+    end = models.DateTimeField(null=True, blank=True, help_text=_("The date/time the training was completed"))
+    completion_data = models.JSONField(
+        null=True, blank=True, help_text=_("Completion data to be stored for the training, like answers to questions")
+    )
+    creation_time = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["prospective_user", "end", "-due_date"]
+
+    def has_training_expired(self) -> bool:
+        return self.due_date and self.due_date < timezone.now()
+
+    def generate_link(self) -> str:
+        return get_full_url(
+            reverse("public_online_training_user_training", args=[TimestampSigner().sign(str(self.id))])
+        )
+
+    def generate_and_send_new_email(self):
+        link = self.generate_link()
+        send_mail(
+            "Training link",
+            f"Dear {self.prospective_user.first_name},<br><br>Please click on the following unique link to complete your assigned training: <br><a href='{link}'>complete training</a>.",
+            from_email=None,
+            to=[self.prospective_user.email],
+            email_category=ONLINE_TRAINING_EMAIL_CATEGORY,
+        )
+
+    def completed(self):
+        return self.end is not None
+
+    def completion_time(self) -> timedelta | str | None:
+        if self.start and self.end:
+            return format_timedelta(self.end - self.start, "{H:02}h {M:02}m {S:02}s")
+        elif self.start:
+            return "ongoing"
+        return None
+
+    def complete(self, data: dict = None):
+        from NEMO_online_training.training_actions import action_handlers
+
+        self.end = timezone.now()
+        self.completion_data = data
+        self.save()
+        for action in self.online_training.onlinetrainingaction_set.all():
+            handler = action_handlers[action.action_type]
+            handler.perform(action, self)
+
+    def clean(self):
+        if self.prospective_user and self.online_training:
+            # Check for duplicate incomplete trainings
+            if (
+                OnlineUserTraining.objects.filter(
+                    prospective_user=self.prospective_user,
+                    online_training=self.online_training,
+                    end__isnull=True,
+                    due_date__gte=timezone.now(),
+                )
+                .exclude(id=self.id)
+                .exists()
+            ):
+                raise ValidationError(
+                    {
+                        NON_FIELD_ERRORS: _(
+                            "This user already has an incomplete training of this type. Please complete or remove it first."
+                        )
+                    }
+                )
+
+    def __str__(self):
+        due_date = f", due {format_datetime(self.due_date, 'SHORT_DATETIME_FORMAT')}" if self.due_date else ""
+        return f"{self.online_training.name} - {self.prospective_user.get_name()}{due_date}"
+
+
+def notification_qs_for_training(training: OnlineUserTraining):
+    ct = ContentType.objects.get_for_model(OnlineUserTraining)
+    return Notification.objects.filter(
+        notification_type=ONLINE_TRAINING_NOTIFICATION_TYPE, content_type=ct, object_id=training.pk
+    )
+
+
+@receiver(post_save, sender=OnlineUserTraining)
+def online_training_user_training_notification_on_save(sender, instance: OnlineUserTraining, created: bool, **kwargs):
+    # always remove any previous notifications
+    def _delete():
+        notification_qs_for_training(instance).delete()
+
+    transaction.on_commit(_delete)
+
+    if instance.prospective_user.nemo_user and not instance.end:
+        # Create/Recreate a notification when the training is created or updated (except when it's completed).
+        def _update():
+            Notification.objects.get_or_create(
+                user=instance.prospective_user.nemo_user,
+                notification_type=ONLINE_TRAINING_NOTIFICATION_TYPE,
+                content_type=ContentType.objects.get_for_model(OnlineUserTraining),
+                object_id=instance.id,
+                defaults={"expiration": (instance.due_date or timezone.now()) + timedelta(days=30)},
+            )
+
+        transaction.on_commit(_update)
+        return
+
+
+@receiver(pre_delete, sender=OnlineUserTraining)
+def online_training_user_training_notification_on_delete(sender, instance: OnlineUserTraining, **kwargs):
+    def _delete():
+        notification_qs_for_training(instance).delete()
+
+    transaction.on_commit(_delete)

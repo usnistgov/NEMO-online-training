@@ -1,0 +1,69 @@
+from django.urls import include, path
+
+from NEMO_online_training.views import online_training
+
+urlpatterns = [
+    path(
+        "online_training/",
+        include(
+            [
+                path("user_trainings/", online_training.user_online_trainings, name="online_user_trainings"),
+                path(
+                    "user_trainings/user/<int:prospective_user_id>/",
+                    online_training.user_online_trainings,
+                    name="online_user_trainings",
+                ),
+                path(
+                    "user_trainings/search_users/",
+                    online_training.search_prospective_users,
+                    name="online_training_search_users",
+                ),
+                path(
+                    "user_trainings/search_results/",
+                    online_training.prospective_users_search_results,
+                    name="online_training_search_users_results",
+                ),
+                path(
+                    "users/create_from_nemo_user/<int:nemo_user_id>/",
+                    online_training.create_prospective_user_from_nemo_user,
+                    name="online_training_create_prospective_user_from_nemo_user",
+                ),
+                path(
+                    "users/create_user/",
+                    online_training.create_prospective_user,
+                    name="online_training_create_prospective_user",
+                ),
+                path(
+                    "user_trainings/<int:user_training_id>/",
+                    online_training.training,
+                    name="online_training_user_training",
+                ),
+                path(
+                    "trainings/<int:online_training_id>/",
+                    online_training.training_without_assignment,
+                    name="online_training_training",
+                ),
+                path(
+                    "user_trainings/<int:prospective_user_id>/<int:online_training_id>/add/",
+                    online_training.add_training_to_user,
+                    name="online_training_add_training_to_user",
+                ),
+                path(
+                    "public/user_training/<str:signed_user_training_id>/",
+                    online_training.public_user_training,
+                    name="public_online_training_user_training",
+                ),
+                path(
+                    "public/complete_user_training/",
+                    online_training.public_complete_user_training,
+                    name="public_online_training_complete_user_training",
+                ),
+                path(
+                    "public/generate_user_training_email/<int:user_training_id>/",
+                    online_training.public_generate_user_training_email,
+                    name="public_online_training_generate_user_training_email",
+                ),
+            ]
+        ),
+    )
+]

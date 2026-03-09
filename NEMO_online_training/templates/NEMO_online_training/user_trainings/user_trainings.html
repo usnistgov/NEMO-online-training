@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% load custom_tags_and_filters %}
+{% load static %}
+{% block extrahead %}
+    <link rel="stylesheet"
+          type="text/css"
+          href="{% static "NEMO_online_training/nemo_online_training.css" %}" />
+{% endblock %}
+{% block title %}{{ customizations|get_item:"online_training_feature_name" }}{% endblock %}
+{% block content %}
+    <div class="row">
+        <div class="col-xs-9">
+            <h1 style="margin-top: 0; margin-bottom: 25px">{{ customizations|get_item:"online_training_feature_name" }}</h1>
+        </div>
+    </div>
+    <div>
+        {% if user_is_staff and not single_user_view %}
+            <div class="row" style="margin-top: 15px;">
+                <div class="col-md-9 col-xs-8" style="margin-bottom: {% if page %}-15px{% else %}0px{% endif %}">
+                    <form class="form-horizontal" method="get">
+                        <div class="form-group">
+                            <label class="col-xs-5 col-sm-4 col-md-3 col-lg-2 control-label" for="training_status">Status</label>
+                            <div class="col-xs-7 col-md-6">
+                                <select id="training_status" name="training_status" class="form-control">
+                                    <option value="" selected>All</option>
+                                    <option value="incomplete" {% if selected_status == "incomplete" %}selected{% endif %}>Has pending trainings</option>
+                                    <option value="complete" {% if selected_status == "complete" %}selected{% endif %}>Has completed all trainings</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-xs-offset-2 col-xs-10">{% button type="save" value="Update" %}</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-sm-4 col-md-3 text-right">
+                    {#                    {% button type="export" value="Export" url=request.path|concat:"?csv=true" target="_blank" %}#}
+                    {% url "online_training_search_users" as search_users_url %}
+                    {% button type="add" value="Add" url=search_users_url %}
+                </div>
+            </div>
+        {% endif %}
+        {% if page %}
+            {% with paginator=page.paginator %}
+                {% if not single_user_view %}
+                    <div class="pagination pull-right" style="clear: both">{% include "pagination/pagination_selector.html" %}</div>
+                {% else %}
+                    <br>
+                {% endif %}
+                <div class="table-responsive" style="width: 100%">
+                    <table class="table table-bordered table-condensed table-align-middle thead-light">
+                        <thead>
+                            <tr>
+                                <th>{% include 'pagination/pagination_column.html' with order_by="first_name" name="User" %}</th>
+                                <th>
+                                    {% include 'pagination/pagination_column.html' with order_by="completed_trainings" name="Completed trainings" %}
+                                </th>
+                                <th>{% include 'pagination/pagination_column.html' with order_by="total_trainings" name="Total trainings" %}</th>
+                                <th>{% include 'pagination/pagination_column.html' with order_by="last_accessed" name="Last accessed" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prospective_user in page %}
+                                <tr style="border-top: 2px solid #ccc;">
+                                    <td id="chevron_{{ prospective_user.id }}"
+                                        data-toggle="collapse"
+                                        data-target="#trainings_{{ prospective_user.id }}"
+                                        onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
+                                        <span class="glyphicon glyphicon-chevron-down pull-left chevron"></span>
+                                        {% if current_user_trainings %}
+                                            {{ prospective_user.first_name }}
+                                        {% else %}
+                                            {{ prospective_user.get_name }} ({{ prospective_user.email }})
+                                        {% endif %}
+                                    </td>
+                                    <td data-toggle="collapse"
+                                        data-target="#trainings_{{ prospective_user.id }}"
+                                        onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
+                                        {{ prospective_user.completed_trainings }}
+                                    </td>
+                                    <td data-toggle="collapse"
+                                        data-target="#trainings_{{ prospective_user.id }}"
+                                        onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
+                                        {{ prospective_user.total_trainings }}
+                                    </td>
+                                    <td data-toggle="collapse"
+                                        data-target="#trainings_{{ prospective_user.id }}"
+                                        onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
+                                        {{ prospective_user.last_accessed|date:"SHORT_DATETIME_FORMAT"|default:"Never" }}
+                                    </td>
+                                </tr>
+                                <tr id="trainings_{{ prospective_user.id }}" class="collapse in">
+                                    <td colspan="4" style="padding: 0">
+                                        <div class="online-training-sub-table-wrapper">
+                                            <table class="table table-borderless table-condensed table-hover"
+                                                   style="table-layout: fixed;
+                                                          width: 100%;
+                                                          margin-bottom: 0">
+                                                <thead>
+                                                    <tr class="online-training-sub-table-header">
+                                                        <th class="">Training</th>
+                                                        <th class="col-md-2 text-center">Available since</th>
+                                                        <th class="col-md-2 text-center">Due</th>
+                                                        <th class="col-md-2 text-center">Completed</th>
+                                                        <th class="col-md-2 text-center">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for user_training in prospective_user.onlineusertraining_set.all %}
+                                                        <tr class="{% if user_training.completed %}success{% elif user_training.has_training_expired %}danger{% endif %}">
+                                                            <td>{{ user_training.online_training.name }}</td>
+                                                            <td class="text-center">{{ user_training.creation_time|date:"SHORT_DATETIME_FORMAT" }}</td>
+                                                            <td class="text-center">
+                                                                {% if not user_training.completed and not user_training.has_training_expired %}
+                                                                    {{ user_training.due_date|timeuntil }}
+                                                                {% else %}
+                                                                    {{ user_training.due_date|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}
+                                                                {% endif %}
+                                                            </td>
+                                                            <td class="text-center">{{ user_training.end|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}</td>
+                                                            <td class="text-right">
+                                                                {% if not user_training.completed and not user_training.has_training_expired %}
+                                                                    {% if current_user_trainings %}
+                                                                        <a class="btn btn-success btn-xs" href="{% url 'online_training_user_training' user_training.id %}">Complete</a>
+                                                                    {% else %}
+                                                                        <button class="btn btn-warning btn-xs"
+                                                                                onclick="send_email_link_for_all_trainings([{{ user_training.id }}])">
+                                                                            {% if not user_training.completed %}Send new link{% endif %}
+                                                                        </button>
+                                                                    {% endif %}
+                                                                {% elif user_training.completed %}
+                                                                    <span class="label label-success">Completed</span>
+                                                                {% elif user_training.has_training_expired %}
+                                                                    <span class="label label-danger">Expired</span>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                    {% endfor %}
+                                                    {% if user_is_staff %}
+                                                        <tr id="add_training_row{{ prospective_user.id }}" style="display: none;">
+                                                            <td>
+                                                                <select id="training_select_{{ prospective_user.id }}" class="form-control input-sm">
+                                                                    <option value="">Select a training...</option>
+                                                                    {% for training in available_trainings %}<option value="{{ training.id }}">{{ training.name }}</option>{% endfor %}
+                                                                </select>
+                                                            </td>
+                                                            <td class="text-center">-</td>
+                                                            <td class="text-center">
+                                                                <input type="datetime-local" id="due_date_{{ prospective_user.id }}" class="form-control input-sm">
+                                                            </td>
+                                                            <td class="text-center">-</td>
+                                                            <td class="text-right">
+                                                                <button class="btn btn-success btn-xs" onclick="save_new_training({{ prospective_user.id }})">Save & send</button>
+                                                                <button class="btn btn-default btn-xs" onclick="cancel_add_training({{ prospective_user.id }})">Cancel</button>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td colspan="5" style="text-align: center; padding: 5px;border-top: 1px solid #ccc">
+                                                                <button id="add_training_btn{{ prospective_user.id }}"
+                                                                        class="btn btn-primary btn-xs"
+                                                                        onclick="show_add_training_row({{ prospective_user.id }})">
+                                                                    <span class="glyphicon glyphicon-plus"></span> Add training
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    {% endif %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if not single_user_view %}
+                    <div class="pagination pull-right" style="margin-bottom: 0">{% include "pagination/pagination_pages.html" %}</div>
+                {% endif %}
+            {% endwith %}
+        {% else %}
+            <div class="pull-left form-control-static">
+                <i>
+                    No records found.
+                </i>
+            </div>
+        {% endif %}
+    </div>
+    <script>
+    function send_email_link_for_all_trainings(training_ids)
+    {
+        for (const training_id of training_ids)
+        {
+            ajax_post(build_django_url("{% url 'public_online_training_generate_user_training_email' '999'%}", ["999"], [training_id]), {"popup": true}, ajax_failure_callback("Link confirmation", "A new link was sent to the email address on file."), ajax_failure_callback("Unable to generate new link"));
+        }
+    }
+
+    function show_add_training_row(user_id)
+    {
+        $('#add_training_row' + user_id).show();
+        $('#add_training_btn' + user_id).parent().parent().hide();
+    }
+
+    function cancel_add_training(user_id)
+    {
+        $('#add_training_row' + user_id).hide();
+        $('#add_training_btn' + user_id).parent().parent().show();
+        $('#training_select_' + user_id).val('');
+        $('#due_date_' + user_id).val('');
+    }
+
+    function save_new_training(user_id)
+    {
+        const training_id = $('#training_select_' + user_id).val();
+        const due_date = $('#due_date_' + user_id).val();
+
+        if (!training_id) {
+            alert('Please select a training');
+            return;
+        }
+
+        ajax_post(
+            build_django_url("{% url 'online_training_add_training_to_user' '99999' '88888' %}", ["99999", "88888"], [user_id, training_id]),
+            due_date ? {due_date: due_date} : {},
+            function () {
+                location.reload();
+            },
+            function(response) {
+                // Handle validation errors from Django form
+                let error_message = 'Unable to add training:\n';
+                if (response.responseJSON && response.responseJSON.errors) {
+                    const errors = response.responseJSON.errors;
+                    for (const field in errors) {
+                        if (field === '__all__') {
+                            error_message += errors[field].join('\n') + '\n';
+                        } else {
+                            const field_name = field.replace('_', ' ').charAt(0).toUpperCase() + field.replace('_', ' ').slice(1);
+                            error_message += field_name + ': ' + errors[field].join(', ') + '\n';
+                        }
+                    }
+                } else {
+                    error_message += response.responseText || 'An unknown error occurred';
+                }
+                alert(error_message);
+            }
+        );
+    }
+    </script>
+{% endblock %}

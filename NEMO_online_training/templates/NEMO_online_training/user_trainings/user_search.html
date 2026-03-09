@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load custom_tags_and_filters %}
+{% load static %}
+{% block extrahead %}
+    <link rel="stylesheet"
+          type="text/css"
+          href="{% static "NEMO_online_training/nemo_online_training.css" %}" />
+{% endblock %}
+{% block title %}Select user{% endblock %}
+{% block content %}
+    <div class="h1 row" style="margin-top: 0">
+        {% url "create_or_modify_user" "new" as new_user_url %}
+        <div class="col-xs-3">Select user</div>
+        <div class="{% if page %}col-sm-9{% else %}col-sm-3{% endif %} text-right">
+            {% button value="New user" type="add" onclick="$('#user_search').hide();$('#user_form').show()" %}
+        </div>
+    </div>
+    <div id="user_search" class="row" style="margin-bottom: 25px">
+        <div class="col-sm-6">
+            <input id="search"
+                   type="text"
+                   aria-label="Search for user"
+                   placeholder="Search for a user"
+                   class="form-control">
+        </div>
+    </div>
+    <div id="user_form" style="display: none;margin-top: 25px">
+        <form class="form-horizontal" action="{% url 'online_training_create_prospective_user' %}" method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="col-sm-2 col-lg-1 control-label" for="first_name">First name</label>
+                <div class="col-sm-3">
+                    <input type="text"
+                           class="form-control"
+                           id="first_name"
+                           name="first_name"
+                           value="{{ form.first_name.value|default_if_none:"" }}">
+                </div>
+                {% if form.first_name.errors %}
+                    <div class="col-sm-7 col-lg-8 form-control-static danger-highlight">{{ form.first_name.errors|striptags }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label class="col-sm-2 col-lg-1  control-label" for="last_name">Last name</label>
+                <div class="col-sm-3">
+                    <input type="text"
+                           class="form-control"
+                           id="last_name"
+                           name="last_name"
+                           value="{{ form.last_name.value|default_if_none:"" }}">
+                </div>
+                {% if form.last_name.errors %}
+                    <div class="col-sm-7 col-lg-8 form-control-static danger-highlight">{{ form.last_name.errors|striptags }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label class="col-sm-2 col-lg-1  control-label" for="email">Email</label>
+                <div class="col-sm-3">
+                    <input type="email"
+                           class="form-control"
+                           id="email"
+                           name="email"
+                           value="{{ form.email.value|default_if_none:"" }}">
+                </div>
+                {% if form.email.errors %}
+                    <div class="col-sm-7 col-lg-8 form-control-static danger-highlight">{{ form.email.errors|striptags }}</div>
+                {% endif %}
+            </div>
+            <button type="submit" class="btn btn-success">Create user</button>
+        </form>
+    </div>
+    <script>
+        function get_user(jquery_event, search_selection, dataset_name)
+        {
+            const user_id = search_selection.id;
+            const user_type = search_selection.type;
+            if (user_type === 'prospectiveuser')
+            {
+                window.location.href = build_django_url("{% url 'online_user_trainings' '999' %}", ["999"], [user_id]);
+            }
+            else
+            {
+                window.location.href = build_django_url("{% url 'online_training_create_prospective_user_from_nemo_user' '999' %}", ["999"], [user_id]);
+            }
+        }
+
+        window.addEventListener('load', function ()
+        {
+            $("#search").autocomplete('users', get_user, '{% url 'online_training_search_users_results' %}', true).focus();
+        }, true);
+
+        if ({{ form.errors|yesno:"true,false" }})
+        {
+            $('#user_search').hide();
+            $('#user_form').show();
+        }
+    </script>
+{% endblock %}
