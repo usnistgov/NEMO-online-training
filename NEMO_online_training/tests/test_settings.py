@@ -76,7 +76,7 @@ TEMPLATES = [
     },
 ]
 
-TIME_ZONE = "US/Eastern"
+TIME_ZONE = "America/New_York"
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ("NEMO.permissions.BillingAPI",),
