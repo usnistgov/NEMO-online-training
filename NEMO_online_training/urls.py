@@ -29,6 +29,11 @@ urlpatterns = [
                     name="online_training_create_prospective_user_from_nemo_user",
                 ),
                 path(
+                    "users/create_nemo_user/<int:prospective_user_id>/",
+                    online_training.create_nemo_user_from_prospective_user,
+                    name="online_training_create_nemo_user_from_prospective_user",
+                ),
+                path(
                     "users/create_user/",
                     online_training.create_prospective_user,
                     name="online_training_create_prospective_user",

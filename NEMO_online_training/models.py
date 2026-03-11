@@ -12,23 +12,18 @@ from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
 from NEMO_online_training.customization import OnlineTrainingCustomization
 from NEMO_online_training.fields import UserTypeFilterField
-from NEMO_online_training.utilities import (
-    ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
-    ONLINE_TRAINING_ACTION_SEND_EMAIL,
-    ONLINE_TRAINING_EMAIL_CATEGORY,
-    ONLINE_TRAINING_NOTIFICATION_TYPE,
-)
+from NEMO_online_training.utilities import ONLINE_TRAINING_EMAIL_CATEGORY, ONLINE_TRAINING_NOTIFICATION_TYPE
 
 
 class ProspectiveUser(BaseModel):
     creation_time = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
     last_accessed = models.DateTimeField(null=True, blank=True)
-
     _first_name = models.CharField(
         verbose_name="First name", db_column="first_name", null=True, blank=True, max_length=CHAR_FIELD_SMALL_LENGTH
     )
@@ -36,7 +31,6 @@ class ProspectiveUser(BaseModel):
         verbose_name="Last name", db_column="last_name", null=True, blank=True, max_length=CHAR_FIELD_SMALL_LENGTH
     )
     _email = models.EmailField(verbose_name="Email address", db_column="email", null=True, blank=True)
-
     nemo_user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
@@ -122,6 +116,13 @@ class ProspectiveUser(BaseModel):
             if ProspectiveUser.objects.filter(_email=self.email).exclude(id=self.id).exists():
                 raise ValidationError({"email": _("This email is already used by another user.")})
 
+    def save(self, *args, **kwargs):
+        if self.nemo_user:
+            self._first_name = None
+            self._last_name = None
+            self._email = None
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
 
@@ -146,8 +147,16 @@ class OnlineTraining(SerializationByNameModel):
     html_content = models.TextField(
         null=True,
         blank=True,
-        help_text=_(
-            'The HTML content of the training. Upon completion, call the js function: "training_completed(dict_data);" and pass any answers/data as a dictionary. The data will be stored in the database'
+        help_text=mark_safe(
+            _(
+                "The HTML content of the training. The following context variables are available:"
+                "<ul style='padding-left: 35px;'>"
+                "<li style='list-style: initial'><b>training_user</b>: the user who is completing the training</li>"
+                "<li style='list-style: initial'><b>training</b>: the training being completed</li>"
+                "<li style='list-style: initial'><b>record</b>: the completion record</li>"
+                "</ul>"
+                "Upon completion, call the JS function: <code>training_completed(dict_data)</code>"
+            )
         ),
     )
     creation_time = models.DateTimeField(auto_now_add=True)
@@ -160,12 +169,8 @@ class OnlineTraining(SerializationByNameModel):
 
 
 class OnlineTrainingAction(BaseModel):
-    class ActionType(models.TextChoices):
-        EXTEND_ACCESS = ONLINE_TRAINING_ACTION_EXTEND_ACCESS, "Extend User Access Expiration"
-        SEND_EMAIL = ONLINE_TRAINING_ACTION_SEND_EMAIL, "Send Notification Email"
-
     online_training = models.ForeignKey(OnlineTraining, on_delete=models.CASCADE)
-    action_type = models.CharField(max_length=CHAR_FIELD_SMALL_LENGTH, choices=ActionType.choices)
+    action_type = models.CharField(max_length=CHAR_FIELD_SMALL_LENGTH)
     configuration = models.JSONField(
         default=dict,
         blank=True,
@@ -198,7 +203,7 @@ class OnlineTrainingAction(BaseModel):
         return field.applies_to_user(self.user_filter, prospective_user)
 
     def __str__(self):
-        return f"{self.get_action_type_display()} for {self.online_training.name}"
+        return f"{self.action_type} for {self.online_training.name}"
 
 
 class OnlineUserTraining(BaseModel):
@@ -214,7 +219,7 @@ class OnlineUserTraining(BaseModel):
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["prospective_user", "end", "-due_date"]
+        ordering = ["-end", "-due_date"]
 
     def has_training_expired(self) -> bool:
         return self.due_date and self.due_date < timezone.now()
@@ -316,3 +321,16 @@ def online_training_user_training_notification_on_delete(sender, instance: Onlin
         notification_qs_for_training(instance).delete()
 
     transaction.on_commit(_delete)
+
+
+@receiver(post_save, sender=User)
+def finalize_prospective_user_to_nemo_user_conversion(sender, instance, created, **kwargs):
+    # Look for the temporary attribute we set in the view
+    corr_id = getattr(instance, "_correlation_id", None)
+
+    if created and corr_id:
+        # Link the ProspectiveUser to this new actual User
+        prospective_user = ProspectiveUser.objects.filter(id=corr_id).first()
+        if prospective_user:
+            prospective_user.nemo_user = instance
+            prospective_user.save()

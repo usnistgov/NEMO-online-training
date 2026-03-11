@@ -2,6 +2,7 @@ from typing import List, Tuple
 
 from NEMO.fields import CommaSeparatedListConverter, CommaSeparatedTextMultipleChoiceField, DynamicChoicesTextField
 from NEMO.models import UserType
+from NEMO.utilities import safe_lazy_queryset_evaluation
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -39,7 +40,7 @@ class UserTypeFilterField(DynamicChoicesTextField):
             (self.PROSPECTIVE_USERS, str(self.LABEL_PROSPECTIVE)),
         ]
 
-        user_types = UserType.objects.all().order_by("name")
+        user_types, error = safe_lazy_queryset_evaluation(UserType.objects.all().order_by("name"))
         for user_type in user_types:
             choices.append((str(user_type.id), user_type.name))
         return choices

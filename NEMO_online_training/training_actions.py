@@ -2,11 +2,16 @@ from abc import ABC, abstractmethod
 from typing import Dict
 
 from NEMO.utilities import render_email_template
+from NEMO.views.customization import ApplicationCustomization
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from NEMO_online_training.fields import UserTypeFilterField
-from NEMO_online_training.utilities import ONLINE_TRAINING_ACTION_EXTEND_ACCESS, ONLINE_TRAINING_ACTION_SEND_EMAIL
+from NEMO_online_training.utilities import (
+    ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
+    ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED,
+    ONLINE_TRAINING_ACTION_SEND_EMAIL,
+)
 
 
 class OnlineTrainingActionHandler(ABC):
@@ -43,9 +48,33 @@ class OnlineTrainingActionHandler(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """
+        Return the name of the action to be saved in the database.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        """
+        Return a description of the action to be shown to the user.
+        """
+        pass
+
 
 class ExtendAccessOnlineTrainingHandler(OnlineTrainingActionHandler):
     """Handler for extending user access expiration"""
+
+    @property
+    def name(self) -> str:
+        return ONLINE_TRAINING_ACTION_EXTEND_ACCESS
+
+    @property
+    def description(self) -> str:
+        return _("Extend User Access Expiration")
 
     def validate(self, configuration: dict, user_filter: list[str]) -> None:
         super().validate(configuration, user_filter)
@@ -66,7 +95,7 @@ class ExtendAccessOnlineTrainingHandler(OnlineTrainingActionHandler):
 
         extend_by_days = action.configuration["extend_by_days"]
 
-        # If user is linked to a NEMO user and has an access expiration field
+        # If the user is linked to a NEMO user
         if user_training.prospective_user.nemo_user:
             nemo_user = user_training.prospective_user.nemo_user
             current_expiration = nemo_user.access_expiration or timezone.now()
@@ -74,8 +103,47 @@ class ExtendAccessOnlineTrainingHandler(OnlineTrainingActionHandler):
             nemo_user.save(update_fields=["access_expiration"])
 
 
+class RemoveTrainingRequiredOnlineTrainingHandler(OnlineTrainingActionHandler):
+    """Handler for removing training requirement on user"""
+
+    @property
+    def name(self) -> str:
+        return ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED
+
+    @property
+    def description(self) -> str:
+        return _("Remove training required on user account")
+
+    def validate(self, configuration: dict, user_filter: list[str]) -> None:
+        super().validate(configuration, user_filter)
+
+        if UserTypeFilterField.PROSPECTIVE_USERS in user_filter:
+            raise ValidationError(
+                {
+                    "user_filter": _(
+                        f"New users cannot have their {ApplicationCustomization.get('facility_rules_name')} requirement removed"
+                    )
+                }
+            )
+
+    def do_perform(self, action, user_training) -> None:
+        # If the user is linked to a NEMO user and has training required
+        if user_training.prospective_user.nemo_user and user_training.online_training.training_required:
+            nemo_user = user_training.prospective_user.nemo_user
+            nemo_user.training_required = False
+            nemo_user.save(update_fields=["training_required"])
+
+
 class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
     """Handler for sending notification emails"""
+
+    @property
+    def name(self) -> str:
+        return ONLINE_TRAINING_ACTION_SEND_EMAIL
+
+    @property
+    def description(self) -> str:
+        return _("Send Notification Email")
 
     def validate(self, configuration: dict, user_filter: list) -> None:
         super().validate(configuration, user_filter)
@@ -114,9 +182,10 @@ class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
 
         # Format message with available context
         context = {
-            "user": user_training.prospective_user,
-            "user_training": user_training,
+            "training_user": user_training.prospective_user,
+            "record": user_training,
             "training": user_training.online_training,
+            "action": action,
         }
         formatted_message = render_email_template(message, context)
         formatted_subject = render_email_template(subject, context)
@@ -143,5 +212,6 @@ class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
 # Registry of all action handlers
 action_handlers: Dict[str, OnlineTrainingActionHandler] = {
     ONLINE_TRAINING_ACTION_EXTEND_ACCESS: ExtendAccessOnlineTrainingHandler(),
+    ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED: RemoveTrainingRequiredOnlineTrainingHandler(),
     ONLINE_TRAINING_ACTION_SEND_EMAIL: SendEmailOnlineTrainingHandler(),
 }

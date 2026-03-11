@@ -5,12 +5,13 @@ from typing import Optional
 
 from NEMO.decorators import user_office_or_manager_required
 from NEMO.models import User
-from NEMO.utilities import format_datetime, queryset_search_filter
+from NEMO.utilities import format_datetime, queryset_search_filter, render_email_template
 from NEMO.views.pagination import SortedPaginator
 from django.contrib.auth.decorators import login_required
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
@@ -29,6 +30,7 @@ online_training_logger = getLogger(__name__)
 def user_online_trainings(request, prospective_user_id=None):
     user: User = request.user
     selected_status = request.GET.get("training_status", "")
+    selected_user_type = request.GET.get("user_type", "")
 
     current_user_trainings = False
     single_user_view = False
@@ -48,6 +50,10 @@ def user_online_trainings(request, prospective_user_id=None):
         prospective_users = prospective_users.filter(all_trainings_completed=True)
     elif selected_status == "incomplete":
         prospective_users = prospective_users.filter(all_trainings_completed=False)
+    if selected_user_type == "new":
+        prospective_users = prospective_users.filter(nemo_user__isnull=True)
+    elif selected_user_type == "nemo":
+        prospective_users = prospective_users.filter(nemo_user__isnull=False)
 
     page = SortedPaginator(prospective_users, request, order_by="-last_updated").get_current_page()
 
@@ -60,6 +66,7 @@ def user_online_trainings(request, prospective_user_id=None):
         "user_is_staff": user_is_staff,
         "single_user_view": single_user_view,
         "selected_status": selected_status,
+        "selected_user_type": selected_user_type,
         "available_trainings": OnlineTraining.objects.all(),
     }
     return render(request, "NEMO_online_training/user_trainings/user_trainings.html", dictionary)
@@ -105,6 +112,16 @@ def create_prospective_user(request):
 
 @login_required
 @require_GET
+def create_nemo_user_from_prospective_user(request, prospective_user_id):
+    prospective_user = get_object_or_404(ProspectiveUser, pk=prospective_user_id)
+    return redirect(
+        reverse("create_or_modify_user", kwargs={"user_id": "new"})
+        + f"?first_name={prospective_user.first_name}&last_name={prospective_user.last_name}&email={prospective_user.email}&correlation_id={prospective_user_id}"
+    )
+
+
+@login_required
+@require_GET
 def training_without_assignment(request, online_training_id):
     online_training = get_object_or_404(OnlineTraining, pk=online_training_id)
     if not online_training.allow_self_enrollment:
@@ -112,12 +129,15 @@ def training_without_assignment(request, online_training_id):
             request,
             "NEMO_online_training/error_message.html",
             {
-                "message": "This training is not available for self enrollment, contact staff to be assigned this training"
+                "title": "Error",
+                "message": "This training is not available for self enrollment, contact staff to be assigned this training",
             },
         )
     if not online_training.enabled:
         return render(
-            request, "NEMO_online_training/error_message.html", {"message": "This training is not available anymore"}
+            request,
+            "NEMO_online_training/error_message.html",
+            {"title": "Error", "message": "This training is not available anymore"},
         )
 
     prospective_user = ProspectiveUser.create_from_nemo_user(request.user)
@@ -139,7 +159,7 @@ def training(request, user_training_id):
         return render(
             request,
             "NEMO_online_training/error_message.html",
-            {"message": "You do not have permission to complete this training"},
+            {"title": "Error", "message": "You do not have permission to complete this training"},
         )
 
     return redirect(online_training_user.generate_link())
@@ -180,14 +200,11 @@ def public_user_training(request, signed_user_training_id):
         user_training_id = signer.unsign(signed_user_training_id)
         online_training_user = get_object_or_404(OnlineUserTraining, id=user_training_id)
         if online_training_user.completed():
-            if request.user and request.user.is_authenticated:
-                return redirect("online_user_trainings")
-            else:
-                return render(
-                    request,
-                    "NEMO_online_training/error_message.html",
-                    {"message": _("This training has been completed!")},
-                )
+            return render(
+                request,
+                "NEMO_online_training/error_message.html",
+                {"title": "Success", "message": _("This training has been completed!")},
+            )
 
         # Now check the time limit
         user_training_id = signer.unsign(signed_user_training_id, max_age=max_age)
@@ -210,16 +227,27 @@ def public_user_training(request, signed_user_training_id):
     online_training_user.prospective_user.save(update_fields=["last_accessed"])
     error = check_training_validity(online_training_user)
     if error:
-        return render(request, "NEMO_online_training/error_message.html", {"message": error})
+        return render(request, "NEMO_online_training/error_message.html", {"title": "Error", "message": error})
     else:
         completion_token = TimestampSigner().sign(user_training_id)
         online_training_user.start = timezone.now()
         online_training_user.save(update_fields=["start"])
+
+        training_context = {
+            "training_user": online_training_user.prospective_user,
+            "training": online_training_user.online_training,
+            "record": online_training_user,
+        }
+
+        online_training_rendered = render_email_template(
+            online_training_user.online_training.html_content, training_context, request
+        )
         return render(
             request,
             "NEMO_online_training/public/user_training.html",
             {
                 "online_training_user": online_training_user,
+                "online_training_rendered": online_training_rendered,
                 "expires_at": online_training_user.start
                 + timedelta(minutes=online_training_user.online_training.completion_time_limit),
                 "completion_token": completion_token,
@@ -235,7 +263,10 @@ def public_generate_user_training_email(request, user_training_id):
             return HttpResponseBadRequest(_("Invalid link"))
         else:
             return render(
-                request, "NEMO_online_training/error_message.html", {"message": _("Invalid link")}, status=400
+                request,
+                "NEMO_online_training/error_message.html",
+                {"title": "Error", "message": _("Invalid link")},
+                status=400,
             )
     online_training_user.generate_and_send_new_email()
     return render(request, "NEMO_online_training/public/new_link_email_confirmation.html")
@@ -261,12 +292,17 @@ def public_complete_user_training(request):
 
     error = check_training_validity(online_training_user)
     if error:
-        return render(request, "NEMO_online_training/error_message.html", {"message": error})
+        return render(request, "NEMO_online_training/error_message.html", {"title": "Error", "message": error})
     else:
-        data = request.POST.dict()
-        # remove completion token and csrf token from the completion data
-        data.pop("completion_token")
-        data.pop("csrfmiddlewaretoken", None)
+        data = {}
+        for key, values in request.POST.lists():
+            # remove completion token and csrf token from the completion data
+            if key in ["csrfmiddlewaretoken", "completion_token"]:
+                continue
+            if len(values) == 1:
+                data[key] = values[0]
+            else:
+                data[key] = values
         online_training_user.complete(data)
 
     return HttpResponse()

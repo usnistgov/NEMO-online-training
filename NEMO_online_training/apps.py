@@ -6,6 +6,7 @@ class OnlineTrainingConfig(AppConfig):
     name = "NEMO_online_training"
     verbose_name = "online training"
     plugin_id = 2200
+    default_auto_field = "django.db.models.AutoField"
 
     @classmethod
     def get_plugin_id(cls):

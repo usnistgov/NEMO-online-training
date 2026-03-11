@@ -1,6 +1,8 @@
+from django import forms
 from django.contrib import admin
 
 from NEMO_online_training.models import OnlineTraining, OnlineTrainingAction, OnlineUserTraining, ProspectiveUser
+from NEMO_online_training.training_actions import action_handlers
 
 
 @admin.register(ProspectiveUser)
@@ -16,6 +18,7 @@ class ProspectiveUserAdmin(admin.ModelAdmin):
         "id",
     ]
     date_hierarchy = "creation_time"
+    autocomplete_fields = ["nemo_user"]
     readonly_fields = ["creation_time", "last_updated", "last_accessed"]
 
     @admin.display(boolean=True, description="All Trainings Completed")
@@ -27,9 +30,24 @@ class ProspectiveUserAdmin(admin.ModelAdmin):
         return obj.all_blocking_trainings_completed()
 
 
-class OnlineTrainingActionInline(admin.StackedInline):
+class OnlineTrainingActionInlineForm(forms.ModelForm):
+    action_type = forms.ChoiceField(choices=[])  # Start empty
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["action_type"].choices = [(action.name, action.description) for action in action_handlers.values()]
+
+    class Meta:
+        model = OnlineTrainingAction
+        fields = "__all__"
+
+
+class OnlineTrainingActionInline(admin.TabularInline):
     model = OnlineTrainingAction
     extra = 0
+    verbose_name = "After training is completed"
+    verbose_name_plural = "After training is completed"
+    form = OnlineTrainingActionInlineForm
 
 
 @admin.register(OnlineTraining)
@@ -38,6 +56,7 @@ class OnlineTrainingAdmin(admin.ModelAdmin):
     list_display = ["name", "enabled", "is_blocking", "completion_time_limit", "creation_time", "id"]
     date_hierarchy = "creation_time"
     list_filter = ["enabled", "is_blocking"]
+    # TODO: action = [duplicate_training]
 
 
 @admin.register(OnlineUserTraining)

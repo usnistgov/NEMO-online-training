@@ -1,4 +1,6 @@
 {% extends user.is_authenticated|yesno:"base.html,NEMO_online_training/base.html" %}
+{% load static %}
+{% load custom_tags_and_filters %}
 {% block title %}{{ online_training_user.online_training.name }}{% endblock %}
 {% block content %}
     <div class="timer-container pull-right">
@@ -8,12 +10,19 @@
         <div id="timer-data" data-expires="{{ expires_at|date:'U' }}" style="display:none;"></div>
     </div>
     <h3>{{ online_training_user.online_training.name }}</h3>
-    {{ online_training_user.online_training.html_content|safe }}
+    {{ online_training_rendered|safe }}
     <script>
         function training_completed(data)
         {
-            data = data || {};
-            data["completion_token"] = "{{ completion_token }}";
+            if(data === undefined)
+            {
+                data = {};
+            }
+            if (data.constructor === Object)
+            {
+                data = $.param(data)
+            }
+            data += "&completion_token={{ completion_token }}";
             ajax_post("{% url 'public_online_training_complete_user_training' %}", data, function() {window.location.reload();}, ajax_failure_callback("There was a problem submitting your data."));
         }
 
