@@ -1,6 +1,15 @@
+from NEMO.urls import router, sort_urls
 from django.urls import include, path
 
+from NEMO_online_training import api
 from NEMO_online_training.views import online_training
+
+# Rest API URLs
+router.register(r"online_training/online_training_actions", api.OnlineTrainingActionViewSet)
+router.register(r"online_training/online_trainings", api.OnlineTrainingViewSet)
+router.register(r"online_training/online_user_trainings", api.OnlineUserTrainingViewSet)
+router.register(r"online_training/prospective_users", api.ProspectiveUserViewSet)
+router.registry.sort(key=sort_urls)
 
 urlpatterns = [
     path(
