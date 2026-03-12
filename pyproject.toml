@@ -1,6 +1,6 @@
 [project]
 name = "NEMO-online-training"
-version = "0.1.0"
+version = "0.9.1"
 description = "Plugin for NEMO to allow users to complete online training even before they have a NEMO account"
 keywords = ["NEMO"]
 readme = "README.md"
