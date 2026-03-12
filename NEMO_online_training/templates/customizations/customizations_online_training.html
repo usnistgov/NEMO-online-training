@@ -49,5 +49,25 @@
         </div>
         <div class="customization-separation" style="margin-bottom: 15px"></div>
         <div class="text-center">{% button type="save" value="Save settings" %}</div>
+        <div class="customization-separation" style="margin-top: 15px"></div>
     </form>
+</div>
+<div class="panel-body">
+    <h3 class="customization-section-title" id="online_training_send_new_link_email_id">
+        {{ customizations|get_item:"online_training_feature_name" }} new link email
+    </h3>
+    <p>This email is sent to users when a training is assigned to them or when they request a new link for the training</p>
+    <p>The following context variables are provided when the email is rendered:</p>
+    <ul>
+        <li>
+            <b>training_user</b> - the user who the training is assigned to
+        </li>
+        <li>
+            <b>training</b> - the training
+        </li>
+        <li>
+            <b>record</b> - the user training record. Use <code>{% templatetag openvariable %} record.generate_link {% templatetag closevariable %}</code> to generate a unique link for the user)
+        </li>
+    </ul>
+    {% include 'customizations/customizations_upload.html' with element=online_training_send_new_link_email name='online training send new link email' key='online_training' %}
 </div>

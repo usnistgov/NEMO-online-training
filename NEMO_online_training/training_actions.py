@@ -183,8 +183,8 @@ class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
         # Format message with available context
         context = {
             "training_user": user_training.prospective_user,
-            "record": user_training,
             "training": user_training.online_training,
+            "record": user_training,
             "action": action,
         }
         formatted_message = render_email_template(message, context)

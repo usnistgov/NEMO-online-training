@@ -2,7 +2,8 @@ from datetime import timedelta
 
 from NEMO.constants import CHAR_FIELD_MEDIUM_LENGTH, CHAR_FIELD_SMALL_LENGTH
 from NEMO.models import BaseModel, Notification, SerializationByNameModel, User
-from NEMO.utilities import format_datetime, format_timedelta, get_full_url, send_mail
+from NEMO.utilities import format_datetime, format_timedelta, get_full_url, render_email_template, send_mail
+from NEMO.views.customization import get_media_file_contents
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.core.signing import TimestampSigner
@@ -230,10 +231,16 @@ class OnlineUserTraining(BaseModel):
         )
 
     def generate_and_send_new_email(self):
-        link = self.generate_link()
+        new_link_template = get_media_file_contents("online_training_send_new_link_email.html")
+        if not new_link_template:
+            new_link_template = "Dear {{ training_user.first_name }},<br><br>Please click on the following unique link to complete your assigned training: <br><a href='{{ record.generate_link }}'>complete training</a>."
+        message = render_email_template(
+            new_link_template,
+            {"training_user": self.prospective_user, "training": self.online_training, "record": self},
+        )
         send_mail(
-            "Training link",
-            f"Dear {self.prospective_user.first_name},<br><br>Please click on the following unique link to complete your assigned training: <br><a href='{link}'>complete training</a>.",
+            subject=f"Link to complete {self.online_training.name}",
+            content=message,
             from_email=None,
             to=[self.prospective_user.email],
             email_category=ONLINE_TRAINING_EMAIL_CATEGORY,

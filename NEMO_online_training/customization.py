@@ -10,6 +10,10 @@ class OnlineTrainingCustomization(CustomizationBase):
         "online_training_user_unique_email": "enabled",
     }
 
+    files = [
+        ("online_training_send_new_link_email", ".html"),
+    ]
+
     def __init__(self, key, title):
         super().__init__(key, title)
         self.title = self.get("online_training_feature_name", raise_exception=False, use_cache=False)
