@@ -1,8 +1,48 @@
+from NEMO.actions import has_perm
+from NEMO.typing import QuerySetType
+from NEMO.utilities import new_model_copy
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.urls import reverse
+from django.utils.safestring import mark_safe
 
 from NEMO_online_training.models import OnlineTraining, OnlineTrainingAction, OnlineUserTraining, ProspectiveUser
 from NEMO_online_training.training_actions import action_handlers
+
+
+@admin.action(description="Duplicate selected training")
+def duplicate_online_training(model_admin, request, queryset: QuerySetType[OnlineTraining]):
+    if not has_perm(request, queryset, "add") or not has_perm(request, queryset, "change"):
+        model_admin.message_user(request, "You do not have permission to run this action.", level=messages.ERROR)
+    for online_training in queryset:
+        original_name = online_training.name
+        new_name = "Copy of " + online_training.name
+        try:
+            if OnlineTraining.objects.filter(name=new_name).exists():
+                messages.error(
+                    request,
+                    mark_safe(
+                        f'There is already a copy of {original_name} as <a href="{reverse("admin:NEMO_online_training_onlinetraining_change", args=[online_training.id])}">{new_name}</a>. Change the copy\'s name and try again'
+                    ),
+                )
+                continue
+            else:
+                old_actions = online_training.onlinetrainingaction_set.all()
+                new_online_training = new_model_copy(online_training)
+                new_online_training.name = new_name
+                new_online_training.save()
+                for action in old_actions:
+                    new_online_training.onlinetrainingaction_set.add(action)
+                messages.success(
+                    request,
+                    mark_safe(
+                        f'A duplicate of {original_name} has been made as <a href="{reverse("admin:NEMO_online_training_onlinetraining_change", args=[new_online_training.id])}">{new_online_training.name}</a>'
+                    ),
+                )
+        except Exception as error:
+            messages.error(
+                request, f"{original_name} could not be duplicated because of the following error: {str(error)}"
+            )
 
 
 @admin.register(ProspectiveUser)
@@ -56,7 +96,7 @@ class OnlineTrainingAdmin(admin.ModelAdmin):
     list_display = ["name", "enabled", "is_blocking", "completion_time_limit", "creation_time", "id"]
     date_hierarchy = "creation_time"
     list_filter = ["enabled", "is_blocking"]
-    # TODO: action = [duplicate_training]
+    actions = [duplicate_online_training]
 
 
 @admin.register(OnlineUserTraining)
