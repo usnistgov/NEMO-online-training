@@ -42,7 +42,9 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
             first_name="Prospective", last_name="User", email="prospective@nemo.com"
         )
 
-        self.training = OnlineTraining.objects.create(name="Test Training", completion_time_limit=120, enabled=True)
+        self.training = OnlineTraining.objects.create(
+            name="Test Training", completion_time_limit=120, enabled=True, default_due_date_days=30
+        )
 
     def test_plugin_is_installed(self):
         assert apps.is_installed("NEMO_online_training")
@@ -218,6 +220,7 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
             completion_time_limit=120,
             enabled=True,
             allow_self_enrollment=True,
+            default_due_date_days=30,
         )
 
         # Create action that applies to all NEMO users
@@ -290,6 +293,7 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
             completion_time_limit=120,
             enabled=True,
             allow_self_enrollment=True,
+            default_due_date_days=30,
         )
 
         # Create action that applies only to staff (not student)

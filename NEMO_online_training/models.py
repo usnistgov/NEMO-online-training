@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from NEMO.constants import CHAR_FIELD_MEDIUM_LENGTH, CHAR_FIELD_SMALL_LENGTH
-from NEMO.models import BaseModel, Notification, SerializationByNameModel, User
+from NEMO.models import BaseModel, Notification, SerializationByNameModel, User, UserType
 from NEMO.utilities import format_datetime, format_timedelta, get_full_url, render_email_template, send_mail
 from NEMO.views.customization import get_media_file_contents
 from django.contrib.contenttypes.models import ContentType
@@ -16,7 +16,6 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
-from NEMO_online_training.customization import OnlineTrainingCustomization
 from NEMO_online_training.fields import UserTypeFilterField
 from NEMO_online_training.utilities import ONLINE_TRAINING_EMAIL_CATEGORY, ONLINE_TRAINING_NOTIFICATION_TYPE
 
@@ -32,34 +31,51 @@ class ProspectiveUser(BaseModel):
         verbose_name="Last name", db_column="last_name", null=True, blank=True, max_length=CHAR_FIELD_SMALL_LENGTH
     )
     _email = models.EmailField(verbose_name="Email address", db_column="email", null=True, blank=True)
+    _user_type = models.ForeignKey(UserType, null=True, blank=True, on_delete=models.SET_NULL)
     nemo_user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
         ordering = ["_first_name", "_last_name", "nemo_user__first_name", "nemo_user__last_name"]
 
     @property
-    def first_name(self):
-        return self._first_name or self.nemo_user.first_name
+    def first_name(self) -> str:
+        return self._first_name or (self.nemo_user.first_name if self.nemo_user_id else "")
 
     @first_name.setter
-    def first_name(self, value):
+    def first_name(self, value: str):
         self._first_name = value
 
     @property
-    def last_name(self):
-        return self._last_name or self.nemo_user.last_name
+    def last_name(self) -> str:
+        return self._last_name or (self.nemo_user.last_name if self.nemo_user_id else "")
 
     @last_name.setter
-    def last_name(self, value):
+    def last_name(self, value: str):
         self._last_name = value
 
     @property
-    def email(self):
-        return self._email or self.nemo_user.email
+    def email(self) -> str:
+        return self._email or (self.nemo_user.email if self.nemo_user_id else "")
 
     @email.setter
-    def email(self, value):
+    def email(self, value: str):
         self._email = value
+
+    @property
+    def user_type(self) -> UserType:
+        return self._user_type or (self.nemo_user.type if self.nemo_user_id else None)
+
+    @user_type.setter
+    def user_type(self, value: UserType):
+        self._user_type = value
+
+    @property
+    def user_type_id(self) -> int:
+        return self._user_type_id or (self.nemo_user.type_id if self.nemo_user_id else None)
+
+    @user_type_id.setter
+    def user_type_id(self, value: int):
+        self._user_type_id = value
 
     def all_trainings_completed(self):
         return not self.onlineusertraining_set.filter(end__isnull=True).exists()
@@ -112,16 +128,12 @@ class ProspectiveUser(BaseModel):
             prospective_user.save()
         return prospective_user
 
-    def clean(self):
-        if OnlineTrainingCustomization.get_bool("online_training_user_unique_email"):
-            if ProspectiveUser.objects.filter(_email=self.email).exclude(id=self.id).exists():
-                raise ValidationError({"email": _("This email is already used by another user.")})
-
     def save(self, *args, **kwargs):
         if self.nemo_user:
             self._first_name = None
             self._last_name = None
             self._email = None
+            self._user_type = None
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -133,17 +145,27 @@ class OnlineTraining(SerializationByNameModel):
     enabled = models.BooleanField(
         default=True, help_text=_("If unchecked, this training will not be available to users")
     )
+    user_filter = UserTypeFilterField(
+        help_text=_(
+            "Select which users this training should be available to. You can select 'All NEMO users', "
+            "specific user types, and/or new users (without NEMO accounts)."
+        ),
+        default="all_nemo,prospective",
+    )
     completion_time_limit = models.PositiveIntegerField(
         default=120, help_text=_("The maximum time the user can take to complete the training on the page (in minutes)")
+    )
+    default_due_date_days = models.PositiveIntegerField(
+        help_text=_("The default number of days before this training is due")
+    )
+    allow_self_enrollment = models.BooleanField(
+        default=False, help_text=_("Allow users to take this training without prior assignment.")
     )
     is_blocking = models.BooleanField(
         default=False,
         help_text=_(
             "If checked, prevents the linked NEMO user from performing other actions until this training is completed"
         ),
-    )
-    allow_self_enrollment = models.BooleanField(
-        default=False, help_text=_("Allow users to take this training without prior assignment.")
     )
     html_content = models.TextField(
         null=True,
@@ -164,6 +186,12 @@ class OnlineTraining(SerializationByNameModel):
 
     class Meta:
         ordering = ["name"]
+
+    def applies_to_user(self, prospective_user) -> bool:
+        return UserTypeFilterField.applies_to_user(self.user_filter, prospective_user)
+
+    def default_due_date_from_now(self):
+        return timezone.now() + timedelta(days=self.default_due_date_days)
 
     def __str__(self):
         return self.name
@@ -200,8 +228,7 @@ class OnlineTrainingAction(BaseModel):
         handler.validate(self.configuration, self.user_filter)
 
     def applies_to_user(self, prospective_user) -> bool:
-        field = UserTypeFilterField()
-        return field.applies_to_user(self.user_filter, prospective_user)
+        return UserTypeFilterField.applies_to_user(self.user_filter, prospective_user)
 
     def __str__(self):
         return f"{self.action_type} for {self.online_training.name}"
@@ -286,6 +313,16 @@ class OnlineUserTraining(BaseModel):
                         )
                     }
                 )
+            if not self.pk:
+                if not UserTypeFilterField.applies_to_user(self.online_training.user_filter, self.prospective_user):
+                    user_type = f"{'New user' if not self.prospective_user.nemo_user_id else 'NEMO user'}{' and '+self.prospective_user.user_type.name if self.prospective_user.user_type else ''}"
+                    raise ValidationError(
+                        {
+                            NON_FIELD_ERRORS: _(
+                                f"This training is restricted to the following user types: {UserTypeFilterField.user_types_display(self.online_training.user_filter)}. {self.prospective_user} is a {user_type}"
+                            )
+                        }
+                    )
 
     def __str__(self):
         due_date = f", due {format_datetime(self.due_date, 'SHORT_DATETIME_FORMAT')}" if self.due_date else ""

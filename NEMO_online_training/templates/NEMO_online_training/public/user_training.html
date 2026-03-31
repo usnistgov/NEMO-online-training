@@ -42,7 +42,8 @@
                 return;
             }
 
-            const hours = Math.floor(time_left / 3600);
+            const days = Math.floor(time_left / (3600*24));
+            const hours = Math.floor(time_left % (3600*24) /3600);
             const minutes = Math.floor((time_left % 3600) / 60);
             const seconds = time_left % 60;
 
@@ -50,7 +51,7 @@
             const minutes_display = minutes < 10 ? '0' + minutes : minutes;
             const seconds_display = seconds < 10 ? '0' + seconds : seconds;
 
-            countdown.text(hours_display + ":" + minutes_display + ":" + seconds_display);
+            countdown.text((days ? days + " day(s) ": "") + hours_display + ":" + minutes_display + ":" + seconds_display);
         }
 
         window.addEventListener("load", function ()

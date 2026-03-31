@@ -53,6 +53,25 @@
                     <div class="col-sm-7 col-lg-8 form-control-static danger-highlight">{{ form.last_name.errors|striptags }}</div>
                 {% endif %}
             </div>
+            {% if user_types %}
+                <div class="form-group">
+                    <label class="col-sm-2 col-lg-1  control-label" for="user_type_id">User type</label>
+                    <div class="col-sm-3">
+                        <select class="form-control" id="user_type_id" name="user_type_id">
+                            <option value="" selected>Select user type</option>
+                            {% for user_type in user_types %}
+                                <option value="{{ user_type.id }}"
+                                        {% if user_type.id|stringformat:"s" == form.user_type_id.value %}selected{% endif %}>
+                                    {{ user_type.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% if form.user_type_id.errors %}
+                        <div class="col-sm-7 col-lg-8 form-control-static danger-highlight">{{ form.user_type_id.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+            {% endif %}
             <div class="form-group">
                 <label class="col-sm-2 col-lg-1  control-label" for="email">Email</label>
                 <div class="col-sm-3">

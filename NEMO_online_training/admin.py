@@ -8,6 +8,7 @@ from django.utils.safestring import mark_safe
 
 from NEMO_online_training.models import OnlineTraining, OnlineTrainingAction, OnlineUserTraining, ProspectiveUser
 from NEMO_online_training.training_actions import action_handlers
+from NEMO_online_training.utilities import validate_prospective_user
 
 
 @admin.action(description="Duplicate selected training")
@@ -32,7 +33,9 @@ def duplicate_online_training(model_admin, request, queryset: QuerySetType[Onlin
                 new_online_training.name = new_name
                 new_online_training.save()
                 for action in old_actions:
-                    new_online_training.onlinetrainingaction_set.add(action)
+                    new_action = new_model_copy(action)
+                    new_action.online_training = new_online_training
+                    new_action.save()
                 messages.success(
                     request,
                     mark_safe(
@@ -43,6 +46,17 @@ def duplicate_online_training(model_admin, request, queryset: QuerySetType[Onlin
             messages.error(
                 request, f"{original_name} could not be duplicated because of the following error: {str(error)}"
             )
+
+
+class ProspectiveUserAdminForm(forms.ModelForm):
+    class Meta:
+        model = ProspectiveUser
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        validate_prospective_user(cleaned_data, self.instance.pk, admin_form=True)
+        return cleaned_data
 
 
 @admin.register(ProspectiveUser)
@@ -60,6 +74,7 @@ class ProspectiveUserAdmin(admin.ModelAdmin):
     date_hierarchy = "creation_time"
     autocomplete_fields = ["nemo_user"]
     readonly_fields = ["creation_time", "last_updated", "last_accessed"]
+    form = ProspectiveUserAdminForm
 
     @admin.display(boolean=True, description="All Trainings Completed")
     def get_all_trainings_completed(self, obj: ProspectiveUser) -> bool:

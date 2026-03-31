@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from NEMO_online_training.models import OnlineUserTraining, ProspectiveUser
+from NEMO_online_training.utilities import validate_prospective_user
 
 
 # Using non-underscore fields here since django Forms don't like variables starting with _
@@ -11,10 +12,11 @@ class ProspectiveUserForm(forms.ModelForm):
     first_name = forms.CharField(label="First name", required=True)
     last_name = forms.CharField(label="Last name", required=True)
     email = forms.EmailField(label="Email", required=True)
+    user_type_id = forms.IntegerField(label="User type", required=False)
 
     class Meta:
         model = ProspectiveUser
-        exclude = ["_first_name", "_last_name", "_email"]
+        exclude = ["_first_name", "_last_name", "_email", "_user_type"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -22,12 +24,15 @@ class ProspectiveUserForm(forms.ModelForm):
             self.fields["first_name"].initial = self.instance._first_name
             self.fields["last_name"].initial = self.instance._last_name
             self.fields["email"].initial = self.instance._email
+            self.fields["user_type_id"].initial = self.instance._user_type_id
 
     def clean(self):
         cleaned_data = super().clean()
         self.instance._first_name = cleaned_data.get("first_name", "").strip()
         self.instance._last_name = cleaned_data.get("last_name", "").strip()
         self.instance._email = cleaned_data.get("email", "").strip()
+        self.instance._user_type_id = cleaned_data.get("user_type_id", None)
+        validate_prospective_user(cleaned_data, self.instance.pk)
         return cleaned_data
 
 

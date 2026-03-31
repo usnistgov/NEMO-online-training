@@ -28,7 +28,8 @@ class UserTypeFilterField(DynamicChoicesTextField):
     LABEL_ALL_NEMO = _("All NEMO users")
     LABEL_PROSPECTIVE = _("All New users")
 
-    def user_type_choices(self) -> List[Tuple[str, str]]:
+    @classmethod
+    def user_type_choices(cls) -> List[Tuple[str, str]]:
         """
         Generate the list of choices for the field.
 
@@ -36,8 +37,8 @@ class UserTypeFilterField(DynamicChoicesTextField):
             List of (value, label) tuples for the dropdown/checkboxes
         """
         choices = [
-            (self.ALL_NEMO_USERS, str(self.LABEL_ALL_NEMO)),
-            (self.PROSPECTIVE_USERS, str(self.LABEL_PROSPECTIVE)),
+            (cls.ALL_NEMO_USERS, str(cls.LABEL_ALL_NEMO)),
+            (cls.PROSPECTIVE_USERS, str(cls.LABEL_PROSPECTIVE)),
         ]
 
         user_types, error = safe_lazy_queryset_evaluation(UserType.objects.all().order_by("name"))
@@ -73,7 +74,8 @@ class UserTypeFilterField(DynamicChoicesTextField):
         value = super().value_from_object(obj)
         return self.get_prep_value(value)
 
-    def applies_to_user(self, filter_values: List[str], prospective_user) -> bool:
+    @classmethod
+    def applies_to_user(cls, filter_values: List[str], prospective_user) -> bool:
         """
         Check if this filter applies to the given prospective user.
 
@@ -92,7 +94,7 @@ class UserTypeFilterField(DynamicChoicesTextField):
         if prospective_user.nemo_user:
             # User has NEMO account
             # Check if "all_nemo" is in the filter
-            if self.ALL_NEMO_USERS in filter_values:
+            if cls.ALL_NEMO_USERS in filter_values:
                 return True
 
             # Check if the user's type ID is in the filter
@@ -104,9 +106,10 @@ class UserTypeFilterField(DynamicChoicesTextField):
         else:
             # User doesn't have NEMO account
             # Check if "prospective" is in the filter
-            return self.PROSPECTIVE_USERS in filter_values
+            return cls.PROSPECTIVE_USERS in filter_values
 
-    def user_types_display(self, filter_values: List[str]) -> str:
+    @classmethod
+    def user_types_display(cls, filter_values: List[str]) -> str:
         """
         Convert the list of selected filter values to a readable string for display.
 
@@ -119,7 +122,7 @@ class UserTypeFilterField(DynamicChoicesTextField):
         if not filter_values:
             return _("None")
 
-        choices_dict = dict(self.user_type_choices())
+        choices_dict = dict(cls.user_type_choices())
         labels = []
 
         for value in filter_values:

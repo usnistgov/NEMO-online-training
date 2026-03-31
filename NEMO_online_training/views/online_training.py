@@ -4,7 +4,7 @@ from logging import getLogger
 from typing import Optional
 
 from NEMO.decorators import user_office_or_manager_required
-from NEMO.models import User
+from NEMO.models import User, UserType
 from NEMO.utilities import format_datetime, queryset_search_filter, render_email_template
 from NEMO.views.pagination import SortedPaginator
 from django.contrib.auth.decorators import login_required
@@ -57,17 +57,24 @@ def user_online_trainings(request, prospective_user_id=None):
 
     page = SortedPaginator(prospective_users, request, order_by="-last_updated").get_current_page()
 
+    available_trainings = OnlineTraining.objects.filter(enabled=True)
+    for prospective_user in page:
+        prospective_user.available_trainings = list()
+        for online_training in available_trainings:
+            if online_training.applies_to_user(prospective_user):
+                prospective_user.available_trainings.append(online_training)
+
     # if bool(request.GET.get("csv", False)):
     #     return export_prospective_users(request, prospective_users.order_by("-last_updated"))
 
     dictionary = {
         "page": page,
         "current_user_trainings": current_user_trainings,
+        "user_types": UserType.objects.all(),
         "user_is_staff": user_is_staff,
         "single_user_view": single_user_view,
         "selected_status": selected_status,
         "selected_user_type": selected_user_type,
-        "available_trainings": OnlineTraining.objects.all(),
     }
     return render(request, "NEMO_online_training/user_trainings/user_trainings.html", dictionary)
 
@@ -75,7 +82,11 @@ def user_online_trainings(request, prospective_user_id=None):
 @require_GET
 @user_office_or_manager_required
 def search_prospective_users(request):
-    return render(request, "NEMO_online_training/user_trainings/user_search.html", {"form": ProspectiveUserForm()})
+    return render(
+        request,
+        "NEMO_online_training/user_trainings/user_search.html",
+        {"form": ProspectiveUserForm(), "user_types": UserType.objects.all()},
+    )
 
 
 @user_office_or_manager_required
@@ -107,7 +118,11 @@ def create_prospective_user(request):
     if form.is_valid():
         prospective_user = form.save()
         return redirect("online_user_trainings", prospective_user_id=prospective_user.id)
-    return render(request, "NEMO_online_training/user_trainings/user_search.html", {"form": form})
+    return render(
+        request,
+        "NEMO_online_training/user_trainings/user_search.html",
+        {"form": form, "user_types": UserType.objects.all()},
+    )
 
 
 @login_required
@@ -116,7 +131,7 @@ def create_nemo_user_from_prospective_user(request, prospective_user_id):
     prospective_user = get_object_or_404(ProspectiveUser, pk=prospective_user_id)
     return redirect(
         reverse("create_or_modify_user", kwargs={"user_id": "new"})
-        + f"?first_name={prospective_user.first_name}&last_name={prospective_user.last_name}&email={prospective_user.email}&correlation_id={prospective_user_id}"
+        + f"?first_name={prospective_user.first_name}&last_name={prospective_user.last_name}&email={prospective_user.email}&type={prospective_user.user_type_id or ''}&correlation_id={prospective_user_id}"
     )
 
 

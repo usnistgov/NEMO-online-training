@@ -62,6 +62,7 @@ urlpatterns = [
                     online_training.add_training_to_user,
                     name="online_training_add_training_to_user",
                 ),
+                # Public URLs
                 path(
                     "public/user_training/<str:signed_user_training_id>/",
                     online_training.public_user_training,
