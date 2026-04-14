@@ -135,7 +135,7 @@
                                                         <tr class="online-training-sub-table-header">
                                                             <th class="">Training</th>
                                                             <th class="col-md-2 text-center">Available since</th>
-                                                            <th class="col-md-2 text-center">Due</th>
+                                                            <th class="col-md-2 text-center">Due in</th>
                                                             <th class="col-md-2 text-center">Completed</th>
                                                             {% if user_is_staff %}<th class="col-md-2 text-center">Completion time</th>{% endif %}
                                                             <th class="col-md-2 text-center">Action</th>
@@ -182,6 +182,7 @@
                                                                         <option value="">Select a training...</option>
                                                                         {% for training in prospective_user.available_trainings %}
                                                                             <option value="{{ training.id }}"
+                                                                                    {% if forloop.first and forloop.last %}selected{% endif %}
                                                                                     data-due-date="{{ training.default_due_date_from_now|input_date_format }}">
                                                                                 {{ training.name }}
                                                                             </option>
@@ -192,7 +193,8 @@
                                                                 <td class="text-center">
                                                                     <input type="text"
                                                                            id="due_date_{{ prospective_user.id }}"
-                                                                           class="form-control input-sm due-date-picker text-center">
+                                                                           class="form-control input-sm due-date-picker text-center"
+                                                                           {% if prospective_user.available_trainings|length == 1 %}value="{{ prospective_user.available_trainings.0.default_due_date_from_now|input_date_format }}"{% endif %}>
                                                                 </td>
                                                                 <td class="text-center">-</td>
                                                                 <td class="text-center">-</td>
