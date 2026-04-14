@@ -29,7 +29,7 @@ online_training_logger = getLogger(__name__)
 @require_GET
 def user_online_trainings(request, prospective_user_id=None):
     user: User = request.user
-    selected_status = request.GET.get("training_status", "")
+    selected_status = request.GET.get("training_status", "incomplete")
     selected_user_type = request.GET.get("user_type", "")
 
     current_user_trainings = False
