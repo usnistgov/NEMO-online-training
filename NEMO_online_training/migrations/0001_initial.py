@@ -156,7 +156,7 @@ class Migration(migrations.Migration):
                     "user_filter",
                     NEMO_online_training.fields.UserTypeFilterField(
                         default="all_nemo,prospective",
-                        help_text="Select which users this action applies to. You can select 'All NEMO users', specific user types, and/or new users (without NEMO accounts).",
+                        help_text="Select which users this action applies to. You can select 'All NEMO users', new users (without NEMO accounts), and/or specific user types.",
                     ),
                 ),
                 (

@@ -148,7 +148,7 @@ class OnlineTraining(SerializationByNameModel):
     user_filter = UserTypeFilterField(
         help_text=_(
             "Select which users this training should be available to. You can select 'All NEMO users', "
-            "specific user types, and/or new users (without NEMO accounts)."
+            "new users (without NEMO accounts), and/or specific user types."
         ),
         default="all_nemo,prospective",
     )
@@ -210,7 +210,7 @@ class OnlineTrainingAction(BaseModel):
     user_filter = UserTypeFilterField(
         help_text=_(
             "Select which users this action applies to. You can select 'All NEMO users', "
-            "specific user types, and/or new users (without NEMO accounts)."
+            "new users (without NEMO accounts), and/or specific user types."
         ),
         default="all_nemo,prospective",
     )

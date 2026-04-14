@@ -43,7 +43,8 @@ class UserTypeFilterField(DynamicChoicesTextField):
 
         user_types, error = safe_lazy_queryset_evaluation(UserType.objects.all().order_by("name"))
         for user_type in user_types:
-            choices.append((str(user_type.id), user_type.name))
+            choices.append((str(user_type.id), user_type.name + " (NEMO user)"))
+            choices.append(("n|" + str(user_type.id), user_type.name + " (New user)"))
         return choices
 
     def formfield(self, **kwargs):
@@ -80,7 +81,7 @@ class UserTypeFilterField(DynamicChoicesTextField):
         Check if this filter applies to the given prospective user.
 
         Args:
-            filter_values: List of filter values (e.g., ["all_nemo", "prospective", "1", "3"])
+            filter_values: List of filter values (e.g., ["all_nemo", "prospective", "1", "3", "n|1", "n|3"])
             prospective_user: ProspectiveUser instance to check
 
         Returns:
@@ -106,7 +107,15 @@ class UserTypeFilterField(DynamicChoicesTextField):
         else:
             # User doesn't have NEMO account
             # Check if "prospective" is in the filter
-            return cls.PROSPECTIVE_USERS in filter_values
+            if cls.PROSPECTIVE_USERS in filter_values:
+                return True
+
+            # Check if the user's type ID is in the filter
+            user_type_id = str(prospective_user.type_id)
+            if f"n|{user_type_id}" in filter_values:
+                return True
+
+            return False
 
     @classmethod
     def user_types_display(cls, filter_values: List[str]) -> str:
