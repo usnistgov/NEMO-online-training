@@ -111,7 +111,7 @@ class UserTypeFilterField(DynamicChoicesTextField):
                 return True
 
             # Check if the user's type ID is in the filter
-            user_type_id = str(prospective_user.type_id)
+            user_type_id = str(prospective_user.user_type_id)
             if f"n|{user_type_id}" in filter_values:
                 return True
 
