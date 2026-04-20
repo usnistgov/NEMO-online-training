@@ -142,32 +142,32 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {% for user_training in training_user.trainingrecord_set.all %}
-                                                            <tr class="{% if user_training.completed %}success{% elif user_training.has_training_expired %}danger{% endif %}">
-                                                                <td>{{ user_training.online_training.name }}</td>
-                                                                <td class="text-center">{{ user_training.creation_time|date:"SHORT_DATETIME_FORMAT" }}</td>
+                                                        {% for training_record in training_user.trainingrecord_set.all %}
+                                                            <tr class="{% if training_record.completed %}success{% elif training_record.has_training_expired %}danger{% endif %}">
+                                                                <td>{{ training_record.training.name }}</td>
+                                                                <td class="text-center">{{ training_record.creation_time|date:"SHORT_DATETIME_FORMAT" }}</td>
                                                                 <td class="text-center">
-                                                                    {% if not user_training.completed and not user_training.has_training_expired %}
-                                                                        {{ user_training.due_date|timeuntil }}
+                                                                    {% if not training_record.completed and not training_record.has_training_expired %}
+                                                                        {{ training_record.due_date|timeuntil }}
                                                                     {% else %}
-                                                                        {{ user_training.due_date|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}
+                                                                        {{ training_record.due_date|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}
                                                                     {% endif %}
                                                                 </td>
-                                                                <td class="text-center">{{ user_training.end|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}</td>
-                                                                {% if user_is_staff %}<td class="text-center">{{ user_training.completion_time|default_if_none:"" }}</td>{% endif %}
+                                                                <td class="text-center">{{ training_record.end|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}</td>
+                                                                {% if user_is_staff %}<td class="text-center">{{ training_record.completion_time|default_if_none:"" }}</td>{% endif %}
                                                                 <td class="text-right">
-                                                                    {% if not user_training.completed and not user_training.has_training_expired %}
+                                                                    {% if not training_record.completed and not training_record.has_training_expired %}
                                                                         {% if current_user_trainings %}
-                                                                            <a class="btn btn-success btn-xs" href="{% url 'online_training_user_training' user_training.id %}">Complete</a>
+                                                                            <a class="btn btn-success btn-xs" href="{% url 'online_training_user_training' training_record.id %}">Complete</a>
                                                                         {% else %}
                                                                             <button class="btn btn-warning btn-xs"
-                                                                                    onclick="send_email_link_for_all_trainings([{{ user_training.id }}])">
-                                                                                {% if not user_training.completed %}Send new link{% endif %}
+                                                                                    onclick="send_email_link_for_all_trainings([{{ training_record.id }}])">
+                                                                                {% if not training_record.completed %}Send new link{% endif %}
                                                                             </button>
                                                                         {% endif %}
-                                                                    {% elif user_training.completed %}
+                                                                    {% elif training_record.completed %}
                                                                         <span class="label label-success">Completed</span>
-                                                                    {% elif user_training.has_training_expired %}
+                                                                    {% elif training_record.has_training_expired %}
                                                                         <span class="label label-danger">Expired</span>
                                                                     {% endif %}
                                                                 </td>

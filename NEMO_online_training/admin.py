@@ -23,7 +23,7 @@ def duplicate_online_training(model_admin, request, queryset: QuerySetType[Train
                 messages.error(
                     request,
                     mark_safe(
-                        f'There is already a copy of {original_name} as <a href="{reverse("admin:NEMO_online_training_onlinetraining_change", args=[online_training.id])}">{new_name}</a>. Change the copy\'s name and try again'
+                        f'There is already a copy of {original_name} as <a href="{reverse("admin:NEMO_online_training_training_change", args=[online_training.id])}">{new_name}</a>. Change the copy\'s name and try again'
                     ),
                 )
                 continue
@@ -39,7 +39,7 @@ def duplicate_online_training(model_admin, request, queryset: QuerySetType[Train
                 messages.success(
                     request,
                     mark_safe(
-                        f'A duplicate of {original_name} has been made as <a href="{reverse("admin:NEMO_online_training_onlinetraining_change", args=[new_training.id])}">{new_training.name}</a>'
+                        f'A duplicate of {original_name} has been made as <a href="{reverse("admin:NEMO_online_training_training_change", args=[new_training.id])}">{new_training.name}</a>'
                     ),
                 )
         except Exception as error:

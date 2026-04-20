@@ -86,7 +86,7 @@ class NEMOOnlineTrainingPolicy(BaseNEMOPolicy):
 
 
 def get_blocking_training_error_message(user_trainings_due: QuerySet[TrainingRecord], html=True) -> str:
-    training_names = user_trainings_due.values_list("online_training__name", flat=True)
+    training_names = user_trainings_due.values_list("training__name", flat=True)
     training_list = ""
     if html:
         for training in training_names:

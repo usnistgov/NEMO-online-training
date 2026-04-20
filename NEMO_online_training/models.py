@@ -86,13 +86,11 @@ class TrainingUser(BaseModel):
         """
         now = timezone.now()
         return not self.trainingrecord_set.filter(
-            online_training__is_blocking=True, due_date__lt=now, end__isnull=True
+            training__is_blocking=True, due_date__lt=now, end__isnull=True
         ).exists()
 
     def all_blocking_trainings_due(self):
-        return self.trainingrecord_set.filter(
-            online_training__is_blocking=True, due_date__lt=timezone.now(), end__isnull=True
-        )
+        return self.trainingrecord_set.filter(training__is_blocking=True, due_date__lt=timezone.now(), end__isnull=True)
 
     def get_name(self):
         return self.first_name + " " + self.last_name
