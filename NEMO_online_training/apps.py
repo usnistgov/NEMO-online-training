@@ -27,6 +27,41 @@ class OnlineTrainingConfig(AppConfig):
         )
         from NEMO_online_training.policy import NEMOOnlineTrainingPolicy
 
+        self.verbose_name = getattr(settings, "NEMO_ONLINE_TRAINING_ADMIN_NAME", self.verbose_name)
+        online_training_admin_name = getattr(settings, "NEMO_ONLINE_TRAINING_ADMIN_TRAINING_NAME", None)
+        if online_training_admin_name:
+            from NEMO_online_training.models import Training
+
+            meta_class = Training._meta
+            meta_class.verbose_name = online_training_admin_name
+            meta_class.verbose_name_plural = (
+                online_training_admin_name
+                if online_training_admin_name.endswith("s")
+                else online_training_admin_name + "s"
+            )
+        online_training_user_admin_name = getattr(settings, "NEMO_ONLINE_TRAINING_ADMIN_TRAINING_USER_NAME", None)
+        if online_training_user_admin_name:
+            from NEMO_online_training.models import TrainingUser
+
+            meta_class = TrainingUser._meta
+            meta_class.verbose_name = online_training_user_admin_name
+            meta_class.verbose_name_plural = (
+                online_training_user_admin_name
+                if online_training_user_admin_name.endswith("s")
+                else online_training_user_admin_name + "s"
+            )
+        online_training_record_admin_name = getattr(settings, "NEMO_ONLINE_TRAINING_ADMIN_TRAINING_RECORD_NAME", None)
+        if online_training_record_admin_name:
+            from NEMO_online_training.models import TrainingRecord
+
+            meta_class = TrainingRecord._meta
+            meta_class.verbose_name = online_training_record_admin_name
+            meta_class.verbose_name_plural = (
+                online_training_record_admin_name
+                if online_training_record_admin_name.endswith("s")
+                else online_training_record_admin_name + "s"
+            )
+
         check_extra_dependencies(self.name, ["NEMO", "NEMO-CE"])
 
         add_dynamic_email_categories([(ONLINE_TRAINING_EMAIL_CATEGORY, _("Online training"))])

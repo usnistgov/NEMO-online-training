@@ -75,55 +75,55 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for prospective_user in page %}
+                                {% for training_user in page %}
                                     <tr style="border-top: 2px solid #ccc;">
-                                        <td id="chevron_{{ prospective_user.id }}"
+                                        <td id="chevron_{{ training_user.id }}"
                                             data-toggle="collapse"
-                                            data-target="#trainings_{{ prospective_user.id }}"
-                                            onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
+                                            data-target="#trainings_{{ training_user.id }}"
+                                            onclick="toggle_details($('#chevron_{{ training_user.id }}'))">
                                             <span class="glyphicon glyphicon-chevron-down pull-left chevron"></span>
                                             {% if current_user_trainings %}
-                                                {{ prospective_user.first_name }}
+                                                {{ training_user.first_name }}
                                             {% else %}
-                                                {{ prospective_user.get_name }} ({{ prospective_user.email }})
+                                                {{ training_user.get_name }} ({{ training_user.email }})
                                             {% endif %}
                                         </td>
                                         {% if user_is_staff and user_types %}
                                             <td class="text-center"
                                                 data-toggle="collapse"
-                                                data-target="#trainings_{{ prospective_user.id }}"
-                                                onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
-                                                {{ prospective_user.user_type|default_if_none:"" }}
+                                                data-target="#trainings_{{ training_user.id }}"
+                                                onclick="toggle_details($('#chevron_{{ training_user.id }}'))">
+                                                {{ training_user.user_type|default_if_none:"" }}
                                             </td>
                                         {% endif %}
                                         <td class="text-center"
                                             data-toggle="collapse"
-                                            data-target="#trainings_{{ prospective_user.id }}"
-                                            onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
-                                            {{ prospective_user.completed_trainings }}
+                                            data-target="#trainings_{{ training_user.id }}"
+                                            onclick="toggle_details($('#chevron_{{ training_user.id }}'))">
+                                            {{ training_user.completed_trainings }}
                                         </td>
                                         <td class="text-center"
                                             data-toggle="collapse"
-                                            data-target="#trainings_{{ prospective_user.id }}"
-                                            onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
-                                            {{ prospective_user.total_trainings }}
+                                            data-target="#trainings_{{ training_user.id }}"
+                                            onclick="toggle_details($('#chevron_{{ training_user.id }}'))">
+                                            {{ training_user.total_trainings }}
                                         </td>
                                         <td class="text-center"
                                             data-toggle="collapse"
-                                            data-target="#trainings_{{ prospective_user.id }}"
-                                            onclick="toggle_details($('#chevron_{{ prospective_user.id }}'))">
-                                            {{ prospective_user.last_accessed|date:"SHORT_DATETIME_FORMAT"|default:"Never" }}
+                                            data-target="#trainings_{{ training_user.id }}"
+                                            onclick="toggle_details($('#chevron_{{ training_user.id }}'))">
+                                            {{ training_user.last_accessed|date:"SHORT_DATETIME_FORMAT"|default:"Never" }}
                                         </td>
                                         {% if user_is_staff %}
                                             <td class="text-right">
-                                                {% if not prospective_user.nemo_user and prospective_user.all_trainings_completed %}
-                                                    {% url 'online_training_create_nemo_user_from_prospective_user' prospective_user.id as create_nemo_user_url %}
+                                                {% if not training_user.nemo_user and training_user.all_trainings_completed %}
+                                                    {% url 'online_training_create_nemo_user_from_new_user' training_user.id as create_nemo_user_url %}
                                                     {% button type="save" icon="glyphicon-plus" size="xsmall" submit=False value="Create NEMO user" url=create_nemo_user_url %}
                                                 {% endif %}
                                             </td>
                                         {% endif %}
                                     </tr>
-                                    <tr id="trainings_{{ prospective_user.id }}" class="collapse in">
+                                    <tr id="trainings_{{ training_user.id }}" class="collapse in">
                                         <td colspan="{% if user_is_staff %}{% if user_types %}6{% else %}5{% endif %}{% else %}4{% endif %}"
                                             style="padding: 0">
                                             <div class="online-training-sub-table-wrapper">
@@ -142,7 +142,7 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {% for user_training in prospective_user.onlineusertraining_set.all %}
+                                                        {% for user_training in training_user.trainingrecord_set.all %}
                                                             <tr class="{% if user_training.completed %}success{% elif user_training.has_training_expired %}danger{% endif %}">
                                                                 <td>{{ user_training.online_training.name }}</td>
                                                                 <td class="text-center">{{ user_training.creation_time|date:"SHORT_DATETIME_FORMAT" }}</td>
@@ -174,13 +174,13 @@
                                                             </tr>
                                                         {% endfor %}
                                                         {% if user_is_staff %}
-                                                            <tr id="add_training_row{{ prospective_user.id }}" style="display: none;">
+                                                            <tr id="add_training_row{{ training_user.id }}" style="display: none;">
                                                                 <td>
-                                                                    <select id="training_select_{{ prospective_user.id }}"
+                                                                    <select id="training_select_{{ training_user.id }}"
                                                                             class="form-control input-sm"
-                                                                            onchange="$('#due_date_{{ prospective_user.id }}').val($(this).find(':selected').data('due-date'))">
+                                                                            onchange="$('#due_date_{{ training_user.id }}').val($(this).find(':selected').data('due-date'))">
                                                                         <option value="">Select a training...</option>
-                                                                        {% for training in prospective_user.available_trainings %}
+                                                                        {% for training in training_user.available_trainings %}
                                                                             <option value="{{ training.id }}"
                                                                                     {% if forloop.first and forloop.last %}selected{% endif %}
                                                                                     data-due-date="{{ training.default_due_date_from_now|input_date_format }}">
@@ -192,15 +192,15 @@
                                                                 <td class="text-center">-</td>
                                                                 <td class="text-center">
                                                                     <input type="text"
-                                                                           id="due_date_{{ prospective_user.id }}"
+                                                                           id="due_date_{{ training_user.id }}"
                                                                            class="form-control input-sm due-date-picker text-center"
-                                                                           {% if prospective_user.available_trainings|length == 1 %}value="{{ prospective_user.available_trainings.0.default_due_date_from_now|input_date_format }}"{% endif %}>
+                                                                           {% if training_user.available_trainings|length == 1 %}value="{{ training_user.available_trainings.0.default_due_date_from_now|input_date_format }}"{% endif %}>
                                                                 </td>
                                                                 <td class="text-center">-</td>
                                                                 <td class="text-center">-</td>
                                                                 <td class="text-right">
-                                                                    <button class="btn btn-success btn-xs" onclick="save_new_training({{ prospective_user.id }})">Save & send</button>
-                                                                    <button class="btn btn-default btn-xs" onclick="cancel_add_training({{ prospective_user.id }})">Cancel</button>
+                                                                    <button class="btn btn-success btn-xs" onclick="save_new_training({{ training_user.id }})">Save & send</button>
+                                                                    <button class="btn btn-default btn-xs" onclick="cancel_add_training({{ training_user.id }})">Cancel</button>
                                                                 </td>
                                                             </tr>
                                                             <tr>
@@ -208,9 +208,9 @@
                                                                     style="text-align: center;
                                                                            padding: 5px;
                                                                            border-top: 1px solid #ccc">
-                                                                    <button id="add_training_btn{{ prospective_user.id }}"
+                                                                    <button id="add_training_btn{{ training_user.id }}"
                                                                             class="btn btn-primary btn-xs"
-                                                                            onclick="show_add_training_row({{ prospective_user.id }})">
+                                                                            onclick="show_add_training_row({{ training_user.id }})">
                                                                         <span class="glyphicon glyphicon-plus"></span> Add training
                                                                     </button>
                                                                 </td>

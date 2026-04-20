@@ -1,7 +1,7 @@
 {% extends user.is_authenticated|yesno:"base.html,NEMO_online_training/base.html" %}
 {% load static %}
 {% load custom_tags_and_filters %}
-{% block title %}{{ online_training_user.online_training.name }}{% endblock %}
+{% block title %}{{ online_training_user.training.name }}{% endblock %}
 {% block content %}
     <div class="timer-container pull-right">
         <h4>
@@ -9,7 +9,7 @@
         </h4>
         <div id="timer-data" data-expires="{{ expires_at|date:'U' }}" style="display:none;"></div>
     </div>
-    <h3>{{ online_training_user.online_training.name }}</h3>
+    <h3>{{ online_training_user.training.name }}</h3>
     {{ online_training_rendered|safe }}
     <script>
         function training_completed(data)

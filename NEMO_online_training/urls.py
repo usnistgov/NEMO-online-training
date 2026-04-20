@@ -5,10 +5,10 @@ from NEMO_online_training import api
 from NEMO_online_training.views import online_training
 
 # Rest API URLs
-router.register(r"online_training/online_training_actions", api.OnlineTrainingActionViewSet)
-router.register(r"online_training/online_trainings", api.OnlineTrainingViewSet)
-router.register(r"online_training/online_user_trainings", api.OnlineUserTrainingViewSet)
-router.register(r"online_training/prospective_users", api.ProspectiveUserViewSet)
+router.register(r"online_training/actions", api.ActionViewSet)
+router.register(r"online_training/trainings", api.TrainingViewSet)
+router.register(r"online_training/training_records", api.TrainingRecordViewSet)
+router.register(r"online_training/training_users", api.TrainingUserViewSet)
 router.registry.sort(key=sort_urls)
 
 urlpatterns = [
@@ -18,34 +18,34 @@ urlpatterns = [
             [
                 path("user_trainings/", online_training.user_online_trainings, name="online_user_trainings"),
                 path(
-                    "user_trainings/user/<int:prospective_user_id>/",
+                    "user_trainings/user/<int:training_user_id>/",
                     online_training.user_online_trainings,
                     name="online_user_trainings",
                 ),
                 path(
                     "user_trainings/search_users/",
-                    online_training.search_prospective_users,
+                    online_training.search_training_users,
                     name="online_training_search_users",
                 ),
                 path(
                     "user_trainings/search_results/",
-                    online_training.prospective_users_search_results,
+                    online_training.training_users_search_results,
                     name="online_training_search_users_results",
                 ),
                 path(
                     "users/create_from_nemo_user/<int:nemo_user_id>/",
-                    online_training.create_prospective_user_from_nemo_user,
-                    name="online_training_create_prospective_user_from_nemo_user",
+                    online_training.create_training_user_from_nemo_user,
+                    name="online_training_create_training_user_from_nemo_user",
                 ),
                 path(
-                    "users/create_nemo_user/<int:prospective_user_id>/",
-                    online_training.create_nemo_user_from_prospective_user,
-                    name="online_training_create_nemo_user_from_prospective_user",
+                    "users/create_nemo_user/<int:training_user_id>/",
+                    online_training.create_nemo_user_from_new_user,
+                    name="online_training_create_nemo_user_from_new_user",
                 ),
                 path(
                     "users/create_user/",
-                    online_training.create_prospective_user,
-                    name="online_training_create_prospective_user",
+                    online_training.create_training_user,
+                    name="online_training_create_training_user",
                 ),
                 path(
                     "user_trainings/<int:user_training_id>/",
@@ -58,7 +58,7 @@ urlpatterns = [
                     name="online_training_training",
                 ),
                 path(
-                    "user_trainings/<int:prospective_user_id>/<int:online_training_id>/add/",
+                    "user_trainings/<int:training_user_id>/<int:online_training_id>/add/",
                     online_training.add_training_to_user,
                     name="online_training_add_training_to_user",
                 ),

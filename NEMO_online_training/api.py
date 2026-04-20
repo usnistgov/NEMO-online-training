@@ -2,47 +2,47 @@ from NEMO.serializers import ModelSerializer
 from NEMO.views.api import ModelViewSet, boolean_filters, datetime_filters, key_filters, number_filters, string_filters
 from rest_flex_fields.serializers import FlexFieldsSerializerMixin
 
-from NEMO_online_training.models import OnlineTraining, OnlineTrainingAction, OnlineUserTraining, ProspectiveUser
+from NEMO_online_training.models import Training, Action, TrainingRecord, TrainingUser
 
 
-class OnlineTrainingSerializer(ModelSerializer):
+class TrainingSerializer(ModelSerializer):
     class Meta:
-        model = OnlineTraining
+        model = Training
         fields = "__all__"
 
 
-class ProspectiveUserSerializer(FlexFieldsSerializerMixin, ModelSerializer):
+class TrainingUserSerializer(FlexFieldsSerializerMixin, ModelSerializer):
     class Meta:
-        model = ProspectiveUser
+        model = TrainingUser
         fields = "__all__"
         expandable_fields = {
             "nemo_user": "NEMO.serializers.UserSerializer",
         }
 
 
-class OnlineUserTrainingSerializer(FlexFieldsSerializerMixin, ModelSerializer):
+class TrainingRecordSerializer(FlexFieldsSerializerMixin, ModelSerializer):
     class Meta:
-        model = OnlineUserTraining
+        model = TrainingRecord
         fields = "__all__"
         expandable_fields = {
-            "online_training": "NEMO_online_training.api.OnlineTrainingSerializer",
-            "prospective_user": "NEMO_online_training.api.ProspectiveUserSerializer",
+            "training": "NEMO_online_training.api.TrainingSerializer",
+            "training_user": "NEMO_online_training.api.TrainingUserSerializer",
         }
 
 
-class OnlineTrainingActionSerializer(FlexFieldsSerializerMixin, ModelSerializer):
+class ActionSerializer(FlexFieldsSerializerMixin, ModelSerializer):
     class Meta:
-        model = OnlineTrainingAction
+        model = Action
         fields = "__all__"
         expandable_fields = {
-            "online_training": "NEMO_online_training.api.OnlineTrainingSerializer",
+            "online_training": "NEMO_online_training.api.TrainingSerializer",
         }
 
 
-class OnlineTrainingViewSet(ModelViewSet):
+class TrainingViewSet(ModelViewSet):
     filename = "online_trainings"
-    queryset = OnlineTraining.objects.all()
-    serializer_class = OnlineTrainingSerializer
+    queryset = Training.objects.all()
+    serializer_class = TrainingSerializer
     filterset_fields = {
         "id": key_filters,
         "name": string_filters,
@@ -55,10 +55,10 @@ class OnlineTrainingViewSet(ModelViewSet):
     }
 
 
-class ProspectiveUserViewSet(ModelViewSet):
-    filename = "prospective_users"
-    queryset = ProspectiveUser.objects.all()
-    serializer_class = ProspectiveUserSerializer
+class TrainingUserViewSet(ModelViewSet):
+    filename = "training_users"
+    queryset = TrainingUser.objects.all()
+    serializer_class = TrainingUserSerializer
     filterset_fields = {
         "id": key_filters,
         "creation_time": datetime_filters,
@@ -71,14 +71,14 @@ class ProspectiveUserViewSet(ModelViewSet):
     }
 
 
-class OnlineUserTrainingViewSet(ModelViewSet):
-    filename = "online_user_trainings"
-    queryset = OnlineUserTraining.objects.all()
-    serializer_class = OnlineUserTrainingSerializer
+class TrainingRecordViewSet(ModelViewSet):
+    filename = "training_records"
+    queryset = TrainingRecord.objects.all()
+    serializer_class = TrainingRecordSerializer
     filterset_fields = {
         "id": key_filters,
-        "online_training": key_filters,
-        "prospective_user": key_filters,
+        "training": key_filters,
+        "training_user": key_filters,
         "due_date": datetime_filters,
         "start": datetime_filters,
         "end": datetime_filters,
@@ -88,13 +88,13 @@ class OnlineUserTrainingViewSet(ModelViewSet):
     }
 
 
-class OnlineTrainingActionViewSet(ModelViewSet):
-    filename = "online_training_actions"
-    queryset = OnlineTrainingAction.objects.all()
-    serializer_class = OnlineTrainingActionSerializer
+class ActionViewSet(ModelViewSet):
+    filename = "training_actions"
+    queryset = Action.objects.all()
+    serializer_class = ActionSerializer
     filterset_fields = {
         "id": key_filters,
-        "online_training": key_filters,
+        "training": key_filters,
         "action_type": string_filters,
         "configuration": [],
         "user_filter": string_filters,

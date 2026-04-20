@@ -7,7 +7,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from NEMO_online_training.models import OnlineTraining, OnlineTrainingAction, OnlineUserTraining, ProspectiveUser
+from NEMO_online_training.fields import UserTypeFilterField
+from NEMO_online_training.models import Training, Action, TrainingRecord, TrainingUser
 from NEMO_online_training.training_actions import action_handlers
 from NEMO_online_training.utilities import ONLINE_TRAINING_ACTION_EXTEND_ACCESS, ONLINE_TRAINING_ACTION_SEND_EMAIL
 
@@ -36,13 +37,11 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
             type=self.student_type,
         )
 
-        self.prospective_staff = ProspectiveUser.create_from_nemo_user(self.staff_user)
-        self.prospective_student = ProspectiveUser.create_from_nemo_user(self.student_user)
-        self.prospective_only = ProspectiveUser.objects.create(
-            first_name="Prospective", last_name="User", email="prospective@nemo.com"
-        )
+        self.new_staff = TrainingUser.create_from_nemo_user(self.staff_user)
+        self.new_student = TrainingUser.create_from_nemo_user(self.student_user)
+        self.new_only = TrainingUser.objects.create(first_name="New", last_name="User", email="new@nemo.com")
 
-        self.training = OnlineTraining.objects.create(
+        self.training = Training.objects.create(
             name="Test Training", completion_time_limit=120, enabled=True, default_due_date_days=30
         )
 
@@ -50,54 +49,50 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         assert apps.is_installed("NEMO_online_training")
 
     def test_extend_access_all_nemo_users(self):
-        """Test that extend access action applies to all NEMO users when 'all_nemo' is selected."""
+        """Test that extend access action applies to all NEMO users when 'all_nemo_users' is selected."""
         # Create action for all NEMO users
-        action = OnlineTrainingAction.objects.create(
-            online_training=self.training,
+        action = Action.objects.create(
+            training=self.training,
             action_type=ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
             configuration={"extend_by_days": 365},
-            user_filter="all_nemo",  # All NEMO users
+            user_filter=UserTypeFilterField.ALL_NEMO_USERS,  # All NEMO users
         )
         action.full_clean()
 
         # Set initial access expiration dates
-        initial_date = timezone.now()
+        initial_date = timezone.now().astimezone().date()
         self.staff_user.access_expiration = initial_date
         self.student_user.access_expiration = initial_date
         self.staff_user.save()
         self.student_user.save()
 
         # Test that action applies to all NEMO users
-        self.assertTrue(action.applies_to_user(self.prospective_staff))
-        self.assertTrue(action.applies_to_user(self.prospective_student))
-        self.assertFalse(action.applies_to_user(self.prospective_only))
+        self.assertTrue(action.applies_to_user(self.new_staff))
+        self.assertTrue(action.applies_to_user(self.new_student))
+        self.assertFalse(action.applies_to_user(self.new_only))
 
         # Perform action for staff user
-        user_training_staff = OnlineUserTraining.objects.create(
-            online_training=self.training, prospective_user=self.prospective_staff
-        )
+        user_training_staff = TrainingRecord.objects.create(training=self.training, training_user=self.new_staff)
         action_handlers[action.action_type].perform(action, user_training_staff)
 
         # Verify access was extended
         self.staff_user.refresh_from_db()
         expected_date = initial_date + timedelta(days=365)
-        self.assertEqual(self.staff_user.access_expiration, expected_date.date())
+        self.assertEqual(self.staff_user.access_expiration, expected_date)
 
         # Perform action for student user
-        user_training_student = OnlineUserTraining.objects.create(
-            online_training=self.training, prospective_user=self.prospective_student
-        )
+        user_training_student = TrainingRecord.objects.create(training=self.training, training_user=self.new_student)
         action_handlers[action.action_type].perform(action, user_training_student)
 
         # Verify access was extended
         self.student_user.refresh_from_db()
-        self.assertEqual(self.student_user.access_expiration, expected_date.date())
+        self.assertEqual(self.student_user.access_expiration, expected_date)
 
     def test_extend_access_specific_user_types(self):
         """Test that extend access action applies only to specific user types."""
         # Create action for staff and technician only
-        action = OnlineTrainingAction.objects.create(
-            online_training=self.training,
+        action = Action.objects.create(
+            training=self.training,
             action_type=ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
             configuration={"extend_by_days": 180},
             user_filter=f"{self.staff_type.id},{self.technician_type.id}",  # Staff and Technician only
@@ -105,65 +100,61 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         action.full_clean()
 
         # Set initial access expiration dates
-        initial_date = timezone.now()
+        initial_date = timezone.now().astimezone().date()
         self.staff_user.access_expiration = initial_date
         self.student_user.access_expiration = initial_date
         self.staff_user.save()
         self.student_user.save()
 
         # Test that action applies to staff and technician, but not student
-        self.assertTrue(action.applies_to_user(self.prospective_staff))
-        self.assertFalse(action.applies_to_user(self.prospective_student))
-        self.assertFalse(action.applies_to_user(self.prospective_only))
+        self.assertTrue(action.applies_to_user(self.new_staff))
+        self.assertFalse(action.applies_to_user(self.new_student))
+        self.assertFalse(action.applies_to_user(self.new_only))
 
         # Perform action for staff user
-        user_training_staff = OnlineUserTraining.objects.create(
-            online_training=self.training, prospective_user=self.prospective_staff
-        )
+        user_training_staff = TrainingRecord.objects.create(training=self.training, training_user=self.new_staff)
         action_handlers[action.action_type].perform(action, user_training_staff)
 
         # Verify staff access was extended
         self.staff_user.refresh_from_db()
         expected_date = initial_date + timedelta(days=180)
-        self.assertEqual(self.staff_user.access_expiration, expected_date.date())
+        self.assertEqual(self.staff_user.access_expiration, expected_date)
 
         # Perform action for student user
-        user_training_student = OnlineUserTraining.objects.create(
-            online_training=self.training, prospective_user=self.prospective_student
-        )
+        user_training_student = TrainingRecord.objects.create(training=self.training, training_user=self.new_student)
         action_handlers[action.action_type].perform(action, user_training_student)
 
         # Student's access should not have changed
         self.student_user.refresh_from_db()
-        self.assertEqual(self.student_user.access_expiration, initial_date.date())
+        self.assertEqual(self.student_user.access_expiration, initial_date)
 
-    def test_extend_access_prospective_users_only(self):
-        """Test that extend access action only for prospective users fails."""
-        action = OnlineTrainingAction.objects.create(
-            online_training=self.training,
+    def test_extend_access_new_users_only(self):
+        """Test that extend access action only for new users fails."""
+        action = Action.objects.create(
+            training=self.training,
             action_type=ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
             configuration={"extend_by_days": 90},
-            user_filter="prospective",  # Prospective users only
+            user_filter=UserTypeFilterField.ALL_NEW_USERS,  # new users only
         )
-        # Should raise a validation error because prospective users are not allowed to have access expiration
+        # Should raise a validation error because new users are not allowed to have access expiration
         self.assertRaises(ValidationError, action.full_clean)
 
     def test_extend_access_combined_filter(self):
-        """Test that extend access action applies to specific types AND prospective users."""
-        # Create action for staff type + prospective users
-        action = OnlineTrainingAction.objects.create(
-            online_training=self.training,
+        """Test that extend access action applies to specific types AND new users."""
+        # Create action for staff type + new users
+        action = Action.objects.create(
+            training=self.training,
             action_type=ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
             configuration={"extend_by_days": 30},
-            user_filter=f"{self.staff_type.id},prospective",  # Staff + prospective
+            user_filter=f"{self.staff_type.id},{UserTypeFilterField.ALL_NEW_USERS}",  # Staff + new
         )
-        # Should raise a validation error because prospective users are not allowed to have access expiration
+        # Should raise a validation error because new users are not allowed to have access expiration
         self.assertRaises(ValidationError, action.full_clean)
 
     def test_extend_access_empty_filter(self):
         """Test that action with an empty filter doesn't pass validation."""
-        action = OnlineTrainingAction.objects.create(
-            online_training=self.training,
+        action = Action.objects.create(
+            training=self.training,
             action_type=ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
             configuration={"extend_by_days": 365},
             user_filter="",  # Empty filter
@@ -171,40 +162,34 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         # Should raise a validation error because an empty filter is not allowed
         self.assertRaises(ValidationError, action.full_clean)
 
-    def test_email_prospective_users_only(self):
-        """Test that email access action applies only to prospective users."""
-        action = OnlineTrainingAction.objects.create(
-            online_training=self.training,
+    def test_email_new_users_only(self):
+        """Test that email access action applies only to new users."""
+        action = Action.objects.create(
+            training=self.training,
             action_type=ONLINE_TRAINING_ACTION_SEND_EMAIL,
             configuration={
                 "subject": "Training Completion Reminder",
                 "message": "Dear {{ user.first_name }}, please complete the training.",
                 "recipients": ["user"],
             },
-            user_filter="prospective",  # Prospective users only
+            user_filter=UserTypeFilterField.ALL_NEW_USERS,  # new users only
         )
         action.full_clean()
 
-        # Test that action applies only to prospective user without NEMO account
-        self.assertFalse(action.applies_to_user(self.prospective_staff))
-        self.assertFalse(action.applies_to_user(self.prospective_student))
-        self.assertTrue(action.applies_to_user(self.prospective_only))
+        # Test that action applies only to new user without NEMO account
+        self.assertFalse(action.applies_to_user(self.new_staff))
+        self.assertFalse(action.applies_to_user(self.new_student))
+        self.assertTrue(action.applies_to_user(self.new_only))
 
         email_count = EmailLog.objects.count()
-        user_training_student = OnlineUserTraining.objects.create(
-            online_training=self.training, prospective_user=self.prospective_student
-        )
+        user_training_student = TrainingRecord.objects.create(training=self.training, training_user=self.new_student)
         action_handlers[action.action_type].perform(action, user_training_student)
         self.assertEqual(EmailLog.objects.count(), email_count)
-        user_training_staff = OnlineUserTraining.objects.create(
-            online_training=self.training, prospective_user=self.prospective_staff
-        )
+        user_training_staff = TrainingRecord.objects.create(training=self.training, training_user=self.new_staff)
         action_handlers[action.action_type].perform(action, user_training_staff)
         self.assertEqual(EmailLog.objects.count(), email_count)
-        user_training_prospective = OnlineUserTraining.objects.create(
-            online_training=self.training, prospective_user=self.prospective_only
-        )
-        action_handlers[action.action_type].perform(action, user_training_prospective)
+        user_training_new = TrainingRecord.objects.create(training=self.training, training_user=self.new_only)
+        action_handlers[action.action_type].perform(action, user_training_new)
         self.assertEqual(EmailLog.objects.count(), email_count + 1)
 
     def test_self_enrollment_training_with_action(self):
@@ -212,10 +197,10 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         from django.core.signing import TimestampSigner
         from django.urls import reverse
 
-        from NEMO_online_training.models import OnlineUserTraining
+        from NEMO_online_training.models import TrainingRecord
 
         # Create a self-enrollment training with an action
-        self_enroll_training = OnlineTraining.objects.create(
+        self_enroll_training = Training.objects.create(
             name="Self Enrollment Training",
             completion_time_limit=120,
             enabled=True,
@@ -224,15 +209,15 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         )
 
         # Create action that applies to all NEMO users
-        action = OnlineTrainingAction.objects.create(
-            online_training=self_enroll_training,
+        action = Action.objects.create(
+            training=self_enroll_training,
             action_type=ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
             configuration={"extend_by_days": 90},
-            user_filter="all_nemo",
+            user_filter=UserTypeFilterField.ALL_NEMO_USERS,
         )
 
         # Set initial access expiration for student
-        initial_date = timezone.now()
+        initial_date = timezone.now().astimezone().date()
         self.student_user.access_expiration = initial_date
         self.student_user.save()
 
@@ -240,9 +225,9 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         self.login_as(self.student_user)
 
         # Create training assignment (simulating self-enrollment)
-        user_training = OnlineUserTraining.objects.create(
-            prospective_user=self.prospective_student,
-            online_training=self_enroll_training,
+        user_training = TrainingRecord.objects.create(
+            training_user=self.new_student,
+            training=self_enroll_training,
             start=timezone.now(),
         )
 
@@ -278,17 +263,17 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         # Verify action was triggered and access was extended
         self.student_user.refresh_from_db()
         expected_date = initial_date + timedelta(days=90)
-        self.assertEqual(self.student_user.access_expiration, expected_date.date())
+        self.assertEqual(self.student_user.access_expiration, expected_date)
 
     def test_self_enrollment_training_without_matching_action(self):
         """Test that completing a training doesn't trigger actions that don't apply to the user."""
         from django.core.signing import TimestampSigner
         from django.urls import reverse
 
-        from NEMO_online_training.models import OnlineUserTraining
+        from NEMO_online_training.models import TrainingRecord
 
         # Create a self-enrollment training
-        self_enroll_training = OnlineTraining.objects.create(
+        self_enroll_training = Training.objects.create(
             name="Self Enrollment Training 2",
             completion_time_limit=120,
             enabled=True,
@@ -297,15 +282,15 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         )
 
         # Create action that applies only to staff (not student)
-        action = OnlineTrainingAction.objects.create(
-            online_training=self_enroll_training,
+        action = Action.objects.create(
+            training=self_enroll_training,
             action_type=ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
             configuration={"extend_by_days": 90},
             user_filter=str(self.staff_type.id),  # Staff only
         )
 
         # Set initial access expiration for student
-        initial_date = timezone.now()
+        initial_date = timezone.now().astimezone().date()
         self.student_user.access_expiration = initial_date
         self.student_user.save()
 
@@ -314,9 +299,7 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         # Go to training page
         response = self.client.get(reverse("online_training_training", args=[self_enroll_training.id]), follow=True)
         self.assertEqual(response.status_code, 200)
-        user_training = OnlineUserTraining.objects.get(
-            prospective_user=self.prospective_student, online_training=self_enroll_training
-        )
+        user_training = TrainingRecord.objects.get(training_user=self.new_student, training=self_enroll_training)
         self.assertTrue(user_training)
 
         # Complete the training via the authenticated endpoint
@@ -335,4 +318,4 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
 
         # Verify action was NOT triggered (student's access should remain unchanged)
         self.student_user.refresh_from_db()
-        self.assertEqual(self.student_user.access_expiration, initial_date.date())
+        self.assertEqual(self.student_user.access_expiration, initial_date)

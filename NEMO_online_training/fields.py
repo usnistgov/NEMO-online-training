@@ -13,20 +13,20 @@ class UserTypeFilterField(DynamicChoicesTextField):
     A field for filtering users by type, similar to NEMO's MultiRoleGroupPermissionChoiceField.
 
     Allows selection of:
-    - "all_nemo" - All NEMO users regardless of type
-    - "prospective" - Prospective users without NEMO accounts
+    - "all_nemo_users" - All NEMO users regardless of type
+    - "all_new_users" - All new users without NEMO accounts
     - User type IDs - Specific NEMO user types
 
-    Storage format: Comma-separated string (e.g., "all_nemo,prospective" or "1,3,prospective")
+    Storage format: Comma-separated string (e.g., ["all_nemo_users", "all_new_users", "1", "3", "n|1", "n|3"])
     """
 
     # Special filter values
-    ALL_NEMO_USERS = "all_nemo"
-    PROSPECTIVE_USERS = "prospective"
+    ALL_NEMO_USERS = "all_nemo_users"
+    ALL_NEW_USERS = "all_new_users"
 
     # Display labels
     LABEL_ALL_NEMO = _("All NEMO users")
-    LABEL_PROSPECTIVE = _("All New users")
+    LABEL_ALL_NEW = _("All New users")
 
     @classmethod
     def user_type_choices(cls) -> List[Tuple[str, str]]:
@@ -38,7 +38,7 @@ class UserTypeFilterField(DynamicChoicesTextField):
         """
         choices = [
             (cls.ALL_NEMO_USERS, str(cls.LABEL_ALL_NEMO)),
-            (cls.PROSPECTIVE_USERS, str(cls.LABEL_PROSPECTIVE)),
+            (cls.ALL_NEW_USERS, str(cls.LABEL_ALL_NEW)),
         ]
 
         user_types, error = safe_lazy_queryset_evaluation(UserType.objects.all().order_by("name"))
@@ -76,13 +76,13 @@ class UserTypeFilterField(DynamicChoicesTextField):
         return self.get_prep_value(value)
 
     @classmethod
-    def applies_to_user(cls, filter_values: List[str], prospective_user) -> bool:
+    def applies_to_user(cls, filter_values: List[str], training_user) -> bool:
         """
-        Check if this filter applies to the given prospective user.
+        Check if this filter applies to the given training user.
 
         Args:
-            filter_values: List of filter values (e.g., ["all_nemo", "prospective", "1", "3", "n|1", "n|3"])
-            prospective_user: ProspectiveUser instance to check
+            filter_values: List of filter values (e.g., ["all_nemo_users", "all_new_users", "1", "3", "n|1", "n|3"])
+            training_user: TrainingUser instance to check
 
         Returns:
             True if the filter applies to this user, False otherwise
@@ -92,26 +92,26 @@ class UserTypeFilterField(DynamicChoicesTextField):
             return False
 
         # Check if the user has NEMO account
-        if prospective_user.nemo_user:
+        if training_user.nemo_user:
             # User has NEMO account
             # Check if "all_nemo" is in the filter
             if cls.ALL_NEMO_USERS in filter_values:
                 return True
 
             # Check if the user's type ID is in the filter
-            user_type_id = str(prospective_user.nemo_user.type_id)
+            user_type_id = str(training_user.nemo_user.type_id)
             if user_type_id in filter_values:
                 return True
 
             return False
         else:
             # User doesn't have NEMO account
-            # Check if "prospective" is in the filter
-            if cls.PROSPECTIVE_USERS in filter_values:
+            # Check if "all_new_users" is in the filter
+            if cls.ALL_NEW_USERS in filter_values:
                 return True
 
             # Check if the user's type ID is in the filter
-            user_type_id = str(prospective_user.user_type_id)
+            user_type_id = str(training_user.user_type_id)
             if f"n|{user_type_id}" in filter_values:
                 return True
 

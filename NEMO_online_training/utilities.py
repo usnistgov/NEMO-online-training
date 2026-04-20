@@ -10,9 +10,9 @@ ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED = "REMOVE_TRAINING_REQUIRED"
 ONLINE_TRAINING_ACTION_SEND_EMAIL = "SEND_EMAIL"
 
 
-def validate_prospective_user(cleaned_data: Dict, pk: int, admin_form: bool = False):
+def validate_training_user(cleaned_data: Dict, pk: int, admin_form: bool = False):
     from NEMO.models import User
-    from NEMO_online_training.models import ProspectiveUser
+    from NEMO_online_training.models import TrainingUser
     from NEMO_online_training.customization import OnlineTrainingCustomization
     from django.core.exceptions import ValidationError
     from django.utils.translation import gettext_lazy as _
@@ -24,7 +24,7 @@ def validate_prospective_user(cleaned_data: Dict, pk: int, admin_form: bool = Fa
         email = cleaned_data.get(prefix + "email", None)
         # Check if the email is already used by another user
         if email:
-            if ProspectiveUser.objects.filter(_email=email).exclude(pk=pk).exists():
+            if TrainingUser.objects.filter(_email=email).exclude(pk=pk).exists():
                 errors[prefix + "email"] = _("This email is already used by another user.")
             if User.objects.filter(email=email).exists():
                 errors[prefix + "email"] = _("This email is already used by another NEMO user.")

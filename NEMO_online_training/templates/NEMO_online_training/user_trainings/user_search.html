@@ -25,7 +25,7 @@
         </div>
     </div>
     <div id="user_form" style="display: none;margin-top: 25px">
-        <form class="form-horizontal" action="{% url 'online_training_create_prospective_user' %}" method="post">
+        <form class="form-horizontal" action="{% url 'online_training_create_training_user' %}" method="post">
             {% csrf_token %}
             <div class="form-group">
                 <label class="col-sm-2 col-lg-1 control-label" for="first_name">First name</label>
@@ -93,13 +93,13 @@
         {
             const user_id = search_selection.id;
             const user_type = search_selection.type;
-            if (user_type === 'prospectiveuser')
+            if (user_type === 'traininguser')
             {
                 window.location.href = build_django_url("{% url 'online_user_trainings' '999' %}", ["999"], [user_id]);
             }
             else
             {
-                window.location.href = build_django_url("{% url 'online_training_create_prospective_user_from_nemo_user' '999' %}", ["999"], [user_id]);
+                window.location.href = build_django_url("{% url 'online_training_create_training_user_from_nemo_user' '999' %}", ["999"], [user_id]);
             }
         }
 

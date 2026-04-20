@@ -34,7 +34,7 @@ class OnlineTrainingActionHandler(ABC):
             raise ValidationError(_("Configuration must be a dictionary"))
 
     def perform(self, action, user_training) -> None:
-        if action.applies_to_user(user_training.prospective_user):
+        if action.applies_to_user(user_training.training_user):
             self.do_perform(action, user_training)
 
     @abstractmethod
@@ -43,8 +43,8 @@ class OnlineTrainingActionHandler(ABC):
         Perform the action.
 
         Args:
-            action: The OnlineTrainingAction
-            user_training: The OnlineUserTraining
+            action: The Action
+            user_training: The TrainingRecord
         """
         pass
 
@@ -79,7 +79,7 @@ class ExtendAccessOnlineTrainingHandler(OnlineTrainingActionHandler):
     def validate(self, configuration: dict, user_filter: list[str]) -> None:
         super().validate(configuration, user_filter)
 
-        if UserTypeFilterField.PROSPECTIVE_USERS in user_filter:
+        if UserTypeFilterField.ALL_NEW_USERS in user_filter:
             raise ValidationError({"user_filter": _("New users cannot have their access extended")})
 
         if "extend_by_days" not in configuration:
@@ -96,8 +96,8 @@ class ExtendAccessOnlineTrainingHandler(OnlineTrainingActionHandler):
         extend_by_days = action.configuration["extend_by_days"]
 
         # If the user is linked to a NEMO user
-        if user_training.prospective_user.nemo_user:
-            nemo_user = user_training.prospective_user.nemo_user
+        if user_training.training_user.nemo_user:
+            nemo_user = user_training.training_user.nemo_user
             nemo_user.access_expiration = timezone.now() + timedelta(days=extend_by_days)
             nemo_user.save(update_fields=["access_expiration"])
 
@@ -116,7 +116,7 @@ class RemoveTrainingRequiredOnlineTrainingHandler(OnlineTrainingActionHandler):
     def validate(self, configuration: dict, user_filter: list[str]) -> None:
         super().validate(configuration, user_filter)
 
-        if UserTypeFilterField.PROSPECTIVE_USERS in user_filter:
+        if UserTypeFilterField.ALL_NEW_USERS in user_filter:
             raise ValidationError(
                 {
                     "user_filter": _(
@@ -127,8 +127,8 @@ class RemoveTrainingRequiredOnlineTrainingHandler(OnlineTrainingActionHandler):
 
     def do_perform(self, action, user_training) -> None:
         # If the user is linked to a NEMO user and has training required
-        if user_training.prospective_user.nemo_user and user_training.online_training.training_required:
-            nemo_user = user_training.prospective_user.nemo_user
+        if user_training.training_user.nemo_user and user_training.training.training_required:
+            nemo_user = user_training.training_user.nemo_user
             nemo_user.training_required = False
             nemo_user.save(update_fields=["training_required"])
 
@@ -170,7 +170,7 @@ class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
                     {"configuration": _(f"Invalid recipient '{recipient}'. Must be 'user', or a valid email address")}
                 )
 
-    def do_perform(self, action, user_training) -> None:
+    def do_perform(self, action, training_record) -> None:
         from NEMO.utilities import send_mail
 
         from NEMO_online_training.utilities import ONLINE_TRAINING_EMAIL_CATEGORY
@@ -181,9 +181,9 @@ class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
 
         # Format message with available context
         context = {
-            "training_user": user_training.prospective_user,
-            "training": user_training.online_training,
-            "record": user_training,
+            "training_user": training_record.training_user,
+            "training": training_record.training,
+            "record": training_record,
             "action": action,
         }
         formatted_message = render_email_template(message, context)
@@ -193,7 +193,7 @@ class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
         recipient_emails = []
         for recipient in recipients:
             if recipient == "user":
-                recipient_emails.append(user_training.prospective_user.email)
+                recipient_emails.append(training_record.training_user.email)
             else:
                 # Assume it's an email address
                 recipient_emails.append(recipient)

@@ -18,7 +18,7 @@ from django.db.models import QuerySet
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils.safestring import mark_safe
 
-from NEMO_online_training.models import OnlineUserTraining, ProspectiveUser
+from NEMO_online_training.models import TrainingRecord, TrainingUser
 
 
 class BlockingTrainingDueException(NEMOException):
@@ -47,9 +47,9 @@ class NEMOOnlineTrainingPolicy(BaseNEMOPolicy):
         if new_reservation.user.is_staff_on_tool(new_reservation.tool) or explicit_policy_override:
             return policy_problems, False
 
-        prospective_user = ProspectiveUser.objects.filter(nemo_user=new_reservation.user).first()
-        if prospective_user and not prospective_user.all_blocking_trainings_completed():
-            msg = get_blocking_training_error_message(prospective_user.all_blocking_trainings_due())
+        training_user = TrainingUser.objects.filter(nemo_user=new_reservation.user).first()
+        if training_user and not training_user.all_blocking_trainings_completed():
+            msg = get_blocking_training_error_message(training_user.all_blocking_trainings_due())
             policy_problems.append(msg)
             return policy_problems, True
 
@@ -59,16 +59,16 @@ class NEMOOnlineTrainingPolicy(BaseNEMOPolicy):
         self, tool: Tool, operator: User, user: User, project: Project, staff_charge: bool, remote_work=False
     ) -> HttpResponse:
         if not operator.is_staff_on_tool(tool):
-            prospective_user = ProspectiveUser.objects.filter(nemo_user=user).first()
-            if prospective_user and not prospective_user.all_blocking_trainings_completed():
-                msg = get_blocking_training_error_message(prospective_user.all_blocking_trainings_due())
+            training_user = TrainingUser.objects.filter(nemo_user=user).first()
+            if training_user and not training_user.all_blocking_trainings_completed():
+                msg = get_blocking_training_error_message(training_user.all_blocking_trainings_due())
                 return HttpResponseBadRequest(msg)
         return HttpResponse()
 
     def check_to_enter_any_area(self, user: User):
-        prospective_user = ProspectiveUser.objects.filter(nemo_user=user).first()
-        if prospective_user and not prospective_user.all_blocking_trainings_completed():
-            msg = get_blocking_training_error_message(prospective_user.all_blocking_trainings_due(), html=False)
+        training_user = TrainingUser.objects.filter(nemo_user=user).first()
+        if training_user and not training_user.all_blocking_trainings_completed():
+            msg = get_blocking_training_error_message(training_user.all_blocking_trainings_due(), html=False)
             raise AccessBlockingTrainingDueException(msg)
 
     def check_billing_to_project(
@@ -79,13 +79,13 @@ class NEMOOnlineTrainingPolicy(BaseNEMOPolicy):
         charge: Union[UsageEvent, AreaAccessRecord, ConsumableWithdraw, StaffCharge, Reservation] = None,
     ):
         if not isinstance(charge, (Reservation, UsageEvent, AreaAccessRecord)):
-            prospective_user = ProspectiveUser.objects.filter(nemo_user=user).first()
-            if prospective_user and not prospective_user.all_blocking_trainings_completed():
-                msg = get_blocking_training_error_message(prospective_user.all_blocking_trainings_due())
+            training_user = TrainingUser.objects.filter(nemo_user=user).first()
+            if training_user and not training_user.all_blocking_trainings_completed():
+                msg = get_blocking_training_error_message(training_user.all_blocking_trainings_due())
                 raise ProjectBlockingTrainingDueException(project=project, user=user, msg=msg)
 
 
-def get_blocking_training_error_message(user_trainings_due: QuerySet[OnlineUserTraining], html=True) -> str:
+def get_blocking_training_error_message(user_trainings_due: QuerySet[TrainingRecord], html=True) -> str:
     training_names = user_trainings_due.values_list("online_training__name", flat=True)
     training_list = ""
     if html:

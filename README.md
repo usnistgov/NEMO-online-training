@@ -41,7 +41,11 @@ The following actions are available:
     - `record`: the record of the training being completed
     - `action`: the action being performed (send email action)
 
-
+Display options:
+  - set `NEMO_ONLINE_TRAINING_ADMIN_NAME` in settings.py to customize the admin section name. Default is "Online training"
+  - set `NEMO_ONLINE_TRAINING_ADMIN_TRAINING_NAME` in settings.py to customize the training model admin name. Default is "Training"
+  - set `NEMO_ONLINE_TRAINING_ADMIN_TRAINING_USER_NAME` in settings.py to customize the training user model admin name. Default is "Training User"
+  - set `NEMO_ONLINE_TRAINING_ADMIN_TRAINING_RECORD_NAME` in settings.py to customize the training record model admin name. Default is "Training Record"
 
 # Tests
 

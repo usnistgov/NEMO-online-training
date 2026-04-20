@@ -3,19 +3,19 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from NEMO_online_training.models import OnlineUserTraining, ProspectiveUser
-from NEMO_online_training.utilities import validate_prospective_user
+from NEMO_online_training.models import TrainingRecord, TrainingUser
+from NEMO_online_training.utilities import validate_training_user
 
 
 # Using non-underscore fields here since django Forms don't like variables starting with _
-class ProspectiveUserForm(forms.ModelForm):
+class TrainingUserForm(forms.ModelForm):
     first_name = forms.CharField(label="First name", required=True)
     last_name = forms.CharField(label="Last name", required=True)
     email = forms.EmailField(label="Email", required=True)
     user_type_id = forms.IntegerField(label="User type", required=False)
 
     class Meta:
-        model = ProspectiveUser
+        model = TrainingUser
         exclude = ["_first_name", "_last_name", "_email", "_user_type"]
 
     def __init__(self, *args, **kwargs):
@@ -32,13 +32,13 @@ class ProspectiveUserForm(forms.ModelForm):
         self.instance._last_name = cleaned_data.get("last_name", "").strip()
         self.instance._email = cleaned_data.get("email", "").strip()
         self.instance._user_type_id = cleaned_data.get("user_type_id", None)
-        validate_prospective_user(cleaned_data, self.instance.pk)
+        validate_training_user(cleaned_data, self.instance.pk)
         return cleaned_data
 
 
-class OnlineUserTrainingForm(forms.ModelForm):
+class TrainingRecordForm(forms.ModelForm):
     class Meta:
-        model = OnlineUserTraining
+        model = TrainingRecord
         fields = ["due_date"]
 
     def clean_due_date(self):

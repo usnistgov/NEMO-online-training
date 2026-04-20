@@ -6,20 +6,20 @@ from django.contrib import admin, messages
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
-from NEMO_online_training.models import OnlineTraining, OnlineTrainingAction, OnlineUserTraining, ProspectiveUser
+from NEMO_online_training.models import Training, Action, TrainingRecord, TrainingUser
 from NEMO_online_training.training_actions import action_handlers
-from NEMO_online_training.utilities import validate_prospective_user
+from NEMO_online_training.utilities import validate_training_user
 
 
 @admin.action(description="Duplicate selected training")
-def duplicate_online_training(model_admin, request, queryset: QuerySetType[OnlineTraining]):
+def duplicate_online_training(model_admin, request, queryset: QuerySetType[Training]):
     if not has_perm(request, queryset, "add") or not has_perm(request, queryset, "change"):
         model_admin.message_user(request, "You do not have permission to run this action.", level=messages.ERROR)
     for online_training in queryset:
         original_name = online_training.name
         new_name = "Copy of " + online_training.name
         try:
-            if OnlineTraining.objects.filter(name=new_name).exists():
+            if Training.objects.filter(name=new_name).exists():
                 messages.error(
                     request,
                     mark_safe(
@@ -28,18 +28,18 @@ def duplicate_online_training(model_admin, request, queryset: QuerySetType[Onlin
                 )
                 continue
             else:
-                old_actions = online_training.onlinetrainingaction_set.all()
-                new_online_training = new_model_copy(online_training)
-                new_online_training.name = new_name
-                new_online_training.save()
+                old_actions = online_training.action_set.all()
+                new_training = new_model_copy(online_training)
+                new_training.name = new_name
+                new_training.save()
                 for action in old_actions:
                     new_action = new_model_copy(action)
-                    new_action.online_training = new_online_training
+                    new_action.training = new_training
                     new_action.save()
                 messages.success(
                     request,
                     mark_safe(
-                        f'A duplicate of {original_name} has been made as <a href="{reverse("admin:NEMO_online_training_onlinetraining_change", args=[new_online_training.id])}">{new_online_training.name}</a>'
+                        f'A duplicate of {original_name} has been made as <a href="{reverse("admin:NEMO_online_training_onlinetraining_change", args=[new_training.id])}">{new_training.name}</a>'
                     ),
                 )
         except Exception as error:
@@ -48,19 +48,19 @@ def duplicate_online_training(model_admin, request, queryset: QuerySetType[Onlin
             )
 
 
-class ProspectiveUserAdminForm(forms.ModelForm):
+class TrainingUserAdminForm(forms.ModelForm):
     class Meta:
-        model = ProspectiveUser
+        model = TrainingUser
         fields = "__all__"
 
     def clean(self):
         cleaned_data = super().clean()
-        validate_prospective_user(cleaned_data, self.instance.pk, admin_form=True)
+        validate_training_user(cleaned_data, self.instance.pk, admin_form=True)
         return cleaned_data
 
 
-@admin.register(ProspectiveUser)
-class ProspectiveUserAdmin(admin.ModelAdmin):
+@admin.register(TrainingUser)
+class TrainingUserAdmin(admin.ModelAdmin):
     list_display = [
         "first_name",
         "last_name",
@@ -74,14 +74,14 @@ class ProspectiveUserAdmin(admin.ModelAdmin):
     date_hierarchy = "creation_time"
     autocomplete_fields = ["nemo_user"]
     readonly_fields = ["creation_time", "last_updated", "last_accessed"]
-    form = ProspectiveUserAdminForm
+    form = TrainingUserAdminForm
 
     @admin.display(boolean=True, description="All Trainings Completed")
-    def get_all_trainings_completed(self, obj: ProspectiveUser) -> bool:
+    def get_all_trainings_completed(self, obj: TrainingUser) -> bool:
         return obj.all_trainings_completed()
 
     @admin.display(boolean=True, description="All Blocking Trainings Completed")
-    def get_all_blocking_trainings_completed(self, obj: ProspectiveUser) -> bool:
+    def get_all_blocking_trainings_completed(self, obj: TrainingUser) -> bool:
         return obj.all_blocking_trainings_completed()
 
 
@@ -93,19 +93,19 @@ class OnlineTrainingActionInlineForm(forms.ModelForm):
         self.fields["action_type"].choices = [(action.name, action.description) for action in action_handlers.values()]
 
     class Meta:
-        model = OnlineTrainingAction
+        model = Action
         fields = "__all__"
 
 
 class OnlineTrainingActionInline(admin.TabularInline):
-    model = OnlineTrainingAction
+    model = Action
     extra = 0
     verbose_name = "After training is completed"
     verbose_name_plural = "After training is completed"
     form = OnlineTrainingActionInlineForm
 
 
-@admin.register(OnlineTraining)
+@admin.register(Training)
 class OnlineTrainingAdmin(admin.ModelAdmin):
     inlines = [OnlineTrainingActionInline]
     list_display = ["name", "enabled", "is_blocking", "completion_time_limit", "creation_time", "id"]
@@ -114,11 +114,11 @@ class OnlineTrainingAdmin(admin.ModelAdmin):
     actions = [duplicate_online_training]
 
 
-@admin.register(OnlineUserTraining)
-class OnlineUserTrainingAdmin(admin.ModelAdmin):
+@admin.register(TrainingRecord)
+class TrainingRecordAdmin(admin.ModelAdmin):
     list_display = [
-        "prospective_user",
-        "online_training",
+        "training_user",
+        "training",
         "get_training_completed",
         "get_training_expired",
         "due_date",
@@ -129,14 +129,22 @@ class OnlineUserTrainingAdmin(admin.ModelAdmin):
         "last_updated",
         "id",
     ]
-    list_filter = ["online_training"]
+    list_filter = ["training"]
     date_hierarchy = "creation_time"
     readonly_fields = ["creation_time", "last_updated"]
+    search_fields = [
+        "training_user___first_name",
+        "training_user___last_name",
+        "training_user___email",
+        "training_user__nemo_user__first_name",
+        "training_user__nemo_user__last_name",
+        "training_user__nemo_user__email",
+    ]
 
     @admin.display(boolean=True, description="Completed")
-    def get_training_completed(self, obj: OnlineUserTraining) -> bool:
+    def get_training_completed(self, obj: TrainingRecord) -> bool:
         return obj.completed()
 
     @admin.display(boolean=True, description="Expired")
-    def get_training_expired(self, obj: OnlineUserTraining) -> bool:
+    def get_training_expired(self, obj: TrainingRecord) -> bool:
         return obj.has_training_expired()
