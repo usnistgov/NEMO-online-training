@@ -105,9 +105,9 @@ class TrainingUser(BaseModel):
         return (
             TrainingUser.objects.annotate(
                 # Count all trainings linked to this user
-                total_trainings=Count("onlineusertraining"),
+                total_trainings=Count("trainingrecord"),
                 # Count only the trainings that have a completed date
-                completed_trainings=Count("onlineusertraining", filter=Q(onlineusertraining__end__isnull=False)),
+                completed_trainings=Count("trainingrecord", filter=Q(trainingrecord__end__isnull=False)),
             )
             .annotate(
                 # Compare the two counts to create the boolean
