@@ -54,9 +54,11 @@
 </div>
 <div class="panel-body">
     <h3 class="customization-section-title" id="online_training_send_new_link_email_id">
-        {{ customizations|get_item:"online_training_feature_name" }} new link email
+        {{ customizations|get_item:"online_training_feature_name" }} link email for assigned users
     </h3>
-    <p>This email is sent to users when a training is assigned to them or when they request a new link for the training</p>
+    <p>
+        This email is sent to users (new and existing) when a training is assigned to them or when they request a new link for the training.
+    </p>
     <p>The following context variables are provided when the email is rendered:</p>
     <ul>
         <li>
