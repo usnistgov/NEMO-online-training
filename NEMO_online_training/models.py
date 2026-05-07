@@ -31,7 +31,7 @@ class TrainingUser(BaseModel):
         verbose_name="Last name", db_column="last_name", null=True, blank=True, max_length=CHAR_FIELD_SMALL_LENGTH
     )
     _email = models.EmailField(verbose_name="Email address", db_column="email", null=True, blank=True)
-    _user_type = models.ForeignKey(UserType, null=True, blank=True, on_delete=models.SET_NULL)
+    _user_type = models.ForeignKey(UserType, verbose_name="User type", null=True, blank=True, on_delete=models.SET_NULL)
     nemo_user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
@@ -71,7 +71,11 @@ class TrainingUser(BaseModel):
 
     @property
     def user_type_id(self) -> int:
-        return self._user_type_id or (self.nemo_user.type_id if self.nemo_user_id else None)
+        return (
+            self._user_type_id
+            if self._user_type_id is not None
+            else (self.nemo_user.type_id if self.nemo_user_id else None)
+        )
 
     @user_type_id.setter
     def user_type_id(self, value: int):

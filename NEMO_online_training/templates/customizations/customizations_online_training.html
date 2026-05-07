@@ -47,6 +47,22 @@
                 </div>
             </div>
         </div>
+        <div class="form-group">
+            <label class="control-label col-xs-3 col-md-2" for="online_training_user_type_required">User type</label>
+            <div class="col-md-10 col-xs-9">
+                <input type="hidden" name="online_training_user_type_required" value="off" />
+                <div class="checkbox">
+                    <label>
+                        <input name="online_training_user_type_required"
+                               id="online_training_user_type_required"
+                               type="checkbox"
+                               {% if online_training_user_type_required == "enabled" %}checked{% endif %}
+                               value="enabled">
+                        Check this box to require user type selection for new users
+                    </label>
+                </div>
+            </div>
+        </div>
         <div class="customization-separation" style="margin-bottom: 15px"></div>
         <div class="text-center">{% button type="save" value="Save settings" %}</div>
         <div class="customization-separation" style="margin-top: 15px"></div>

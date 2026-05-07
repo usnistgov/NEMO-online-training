@@ -8,6 +8,7 @@ class OnlineTrainingCustomization(CustomizationBase):
         "online_training_feature_name": "Online trainings",
         "online_training_link_validity_minutes": "7200",  # 5 days
         "online_training_user_unique_email": "enabled",
+        "online_training_user_type_required": "",
     }
 
     files = [
