@@ -31,6 +31,7 @@
                                 <option value="all" selected>All</option>
                                 <option value="incomplete" {% if selected_status == "incomplete" %}selected{% endif %}>Has pending trainings</option>
                                 <option value="complete" {% if selected_status == "complete" %}selected{% endif %}>Has completed all trainings</option>
+                                <option value="empty" {% if selected_status == "empty" %}selected{% endif %}>Has no trainings</option>
                             </select>
                         </div>
                         <label class="col-sm-2 col-lg-2 control-label" for="user_type">User Type</label>
