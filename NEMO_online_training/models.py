@@ -174,13 +174,15 @@ class Training(SerializationByNameModel):
         blank=True,
         help_text=mark_safe(
             _(
-                "The HTML content of the training. The following context variables are available:"
+                "<p>The HTML content of the training. The following context variables are available:</p>"
                 "<ul style='padding-left: 35px;'>"
                 "<li style='list-style: initial'><b>training_user</b>: the user who is completing the training</li>"
                 "<li style='list-style: initial'><b>training</b>: the training being completed</li>"
                 "<li style='list-style: initial'><b>record</b>: the completion record</li>"
+                "<li style='list-style: initial'><b>completion_token</b>: the completion token</li>"
                 "</ul>"
-                "Upon completion, call the JS function: <code>training_completed(dict_data)</code>"
+                "<p>Media files can be used with <code>{% url 'public_online_training_media' completion_token 'media_file_path' %}</code></p>"
+                "<p>Upon completion, call the JS function: <code>training_completed(dict_data)</code> to complete the training</p>"
             )
         ),
     )

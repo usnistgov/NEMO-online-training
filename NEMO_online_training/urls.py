@@ -78,6 +78,11 @@ urlpatterns = [
                     online_training.public_generate_user_training_email,
                     name="public_online_training_generate_user_training_email",
                 ),
+                path(
+                    "public/user_training/<str:signed_user_training_id>/media/<path:file_path>",
+                    online_training.serve_training_media_file,
+                    name="public_online_training_media",
+                ),
             ]
         ),
     )

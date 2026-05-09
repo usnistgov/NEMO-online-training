@@ -1,22 +1,27 @@
 import json
+import os
 from datetime import timedelta
 from logging import getLogger
 from typing import Optional
 
+from NEMO.constants import MEDIA_PROTECTED
 from NEMO.decorators import user_office_or_manager_required
 from NEMO.models import User, UserType
 from NEMO.utilities import format_datetime, queryset_search_filter, render_email_template
 from NEMO.views.pagination import SortedPaginator
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
+from django.views.static import serve
 
 from NEMO_online_training.customization import OnlineTrainingCustomization
 from NEMO_online_training.forms import TrainingRecordForm, TrainingUserForm
@@ -224,12 +229,6 @@ def public_user_training(request, signed_user_training_id):
 
         # Now check the time limit
         user_training_id = signer.unsign(signed_user_training_id, max_age=max_age)
-
-        # Extract the timestamp manually. Django token format is: value:timestamp:signature
-        # We grab the middle part (timestamp) which is Base62 encoded.
-        parts = signed_user_training_id.rsplit(":", 2)
-        if len(parts) < 3:
-            raise BadSignature()
     except (BadSignature, SignatureExpired) as e:
         if isinstance(e, SignatureExpired) and request.user and request.user.is_authenticated:
             return redirect("online_training_user", user_training_id=user_training_id)
@@ -253,6 +252,7 @@ def public_user_training(request, signed_user_training_id):
             "training_user": online_training_user.training_user,
             "training": online_training_user.training,
             "record": online_training_user,
+            "completion_token": completion_token,
         }
 
         online_training_rendered = render_email_template(
@@ -322,6 +322,40 @@ def public_complete_user_training(request):
         online_training_user.complete(data)
 
     return HttpResponse()
+
+
+@xframe_options_sameorigin
+def serve_training_media_file(request, signed_user_training_id, file_path):
+    user_training_id = None
+    try:
+        signer = TimestampSigner()
+        max_age = OnlineTrainingCustomization.get_int("online_training_link_validity_minutes") * 60
+
+        # Just check validity
+        user_training_id = signer.unsign(signed_user_training_id)
+        online_training_user = get_object_or_404(TrainingRecord, id=user_training_id)
+        if online_training_user.completed():
+            return render(
+                request,
+                "NEMO_online_training/error_message.html",
+                {"title": "Success", "message": _("This training has been completed!")},
+            )
+
+        # Now check the time limit
+        user_training_id = signer.unsign(signed_user_training_id, max_age=max_age)
+    except (BadSignature, SignatureExpired) as e:
+        if isinstance(e, SignatureExpired) and request.user and request.user.is_authenticated:
+            return redirect("online_training_user", user_training_id=user_training_id)
+        return render(
+            request,
+            "NEMO_online_training/public/invalid_training_link.html",
+            {"user_training_id": user_training_id},
+        )
+
+    if os.path.normpath(os.path.join(settings.MEDIA_ROOT, file_path)).startswith(MEDIA_PROTECTED):
+        return HttpResponseForbidden()
+
+    return serve(request, file_path, document_root=settings.MEDIA_ROOT)
 
 
 def check_training_validity(online_user_training: TrainingRecord) -> Optional[Promise | str]:

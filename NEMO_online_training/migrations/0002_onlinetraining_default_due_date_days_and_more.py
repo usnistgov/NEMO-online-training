@@ -33,7 +33,11 @@ class Migration(migrations.Migration):
             model_name="prospectiveuser",
             name="_user_type",
             field=models.ForeignKey(
-                blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to="NEMO.usertype"
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="NEMO.usertype",
+                verbose_name="User type",
             ),
         ),
     ]
