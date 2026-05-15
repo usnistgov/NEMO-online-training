@@ -165,6 +165,12 @@ def training_without_assignment(request, online_training_id):
         )
 
     training_user = TrainingUser.create_from_nemo_user(request.user)
+    if not online_training.applies_to_user(training_user):
+        return render(
+            request,
+            "NEMO_online_training/error_message.html",
+            {"title": "Error", "message": "This training is not available for your user type"},
+        )
     online_user_training, created = TrainingRecord.objects.get_or_create(
         training_user=training_user, training=online_training, end=None
     )

@@ -127,6 +127,7 @@ class TrainingUser(BaseModel):
     def create_from_nemo_user(nemo_user: User):
         training_user, created = TrainingUser.objects.get_or_create(nemo_user=nemo_user)
         if created:
+            # force save to set the fields
             training_user.save()
         return training_user
 
@@ -191,7 +192,7 @@ class Training(SerializationByNameModel):
     class Meta:
         ordering = ["name"]
 
-    def applies_to_user(self, training_user) -> bool:
+    def applies_to_user(self, training_user: TrainingUser) -> bool:
         return UserTypeFilterField.applies_to_user(self.user_filter, training_user)
 
     def default_due_date_from_now(self):
