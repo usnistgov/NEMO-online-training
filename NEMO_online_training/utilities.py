@@ -30,7 +30,7 @@ def validate_training_user(cleaned_data: Dict, pk: int, admin_form: bool = False
                 errors[prefix + "email"] = _("This email is already used by another NEMO user.")
     if OnlineTrainingCustomization.get_bool("online_training_user_type_required"):
         user_type_field_name = "user_type" if admin_form else "user_type_id"
-        if not cleaned_data.get(prefix + user_type_field_name, None):
+        if cleaned_data.get(prefix + user_type_field_name, None) is None:
             errors[prefix + user_type_field_name] = _("This field is required.")
     if not cleaned_data.get("nemo_user", None) and admin_form:
         for field in ["_first_name", "_last_name", "_email"]:
