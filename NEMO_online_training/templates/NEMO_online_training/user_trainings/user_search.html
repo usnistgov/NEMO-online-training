@@ -9,7 +9,6 @@
 {% block title %}Select user{% endblock %}
 {% block content %}
     <div class="h1 row" style="margin-top: 0">
-        {% url "create_or_modify_user" "new" as new_user_url %}
         <div class="col-xs-3">Select user</div>
         <div class="{% if page %}col-sm-9{% else %}col-sm-3{% endif %} text-right">
             {% button value="New user" type="add" onclick="$('#user_search').hide();$('#user_form').show()" %}
@@ -41,7 +40,7 @@
                 {% endif %}
             </div>
             <div class="form-group">
-                <label class="col-sm-2 col-lg-1  control-label" for="last_name">Last name</label>
+                <label class="col-sm-2 col-lg-1 control-label" for="last_name">Last name</label>
                 <div class="col-sm-3">
                     <input type="text"
                            class="form-control"
@@ -55,7 +54,7 @@
             </div>
             {% if user_types %}
                 <div class="form-group">
-                    <label class="col-sm-2 col-lg-1  control-label" for="user_type_id">User type</label>
+                    <label class="col-sm-2 col-lg-1 control-label" for="user_type_id">User type</label>
                     <div class="col-sm-3">
                         <select class="form-control" id="user_type_id" name="user_type_id">
                             <option value="" selected>Select user type</option>
@@ -73,7 +72,7 @@
                 </div>
             {% endif %}
             <div class="form-group">
-                <label class="col-sm-2 col-lg-1  control-label" for="email">Email</label>
+                <label class="col-sm-2 col-lg-1 control-label" for="email">Email</label>
                 <div class="col-sm-3">
                     <input type="email"
                            class="form-control"
@@ -83,6 +82,19 @@
                 </div>
                 {% if form.email.errors %}
                     <div class="col-sm-7 col-lg-8 form-control-static danger-highlight">{{ form.email.errors|striptags }}</div>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label class="col-sm-2 col-lg-1 control-label" for="notes">Notes</label>
+                <div class="col-sm-3">
+                    <textarea maxlength="{{ form.fields.notes.max_length }}"
+                              oninput="auto_size_textarea(this)"
+                              class="form-control"
+                              id="notes"
+                              name="notes">{{ form.notes.value|default_if_none:"" }}</textarea>
+                </div>
+                {% if form.notes.errors %}
+                    <div class="col-sm-7 col-lg-8 form-control-static danger-highlight">{{ form.notes.errors|striptags }}</div>
                 {% endif %}
             </div>
             <button type="submit" class="btn btn-success">Create user</button>
@@ -106,6 +118,7 @@
         window.addEventListener('load', function ()
         {
             $("#search").autocomplete('users', get_user, '{% url 'online_training_search_users_results' %}', true).focus();
+            auto_size_textarea($('#notes')[0], 3);
         }, true);
 
         if ({{ form.errors|yesno:"true,false" }})

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Any
 
 from NEMO_online_training.apps import OnlineTrainingConfig
 
@@ -10,12 +10,15 @@ ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED = "REMOVE_TRAINING_REQUIRED"
 ONLINE_TRAINING_ACTION_SEND_EMAIL = "SEND_EMAIL"
 
 
-def validate_training_user(cleaned_data: Dict, pk: int, admin_form: bool = False):
+def validate_training_user(cleaned_data: dict[str, Any] | None, pk: int, admin_form: bool = False):
     from NEMO.models import User
     from NEMO_online_training.models import TrainingUser
     from NEMO_online_training.customization import OnlineTrainingCustomization
     from django.core.exceptions import ValidationError
     from django.utils.translation import gettext_lazy as _
+
+    if not cleaned_data:
+        return
 
     prefix = "_" if admin_form else ""
 

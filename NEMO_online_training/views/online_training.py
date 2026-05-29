@@ -1,5 +1,6 @@
 import json
 import os
+import urllib.parse
 from datetime import timedelta
 from logging import getLogger
 from typing import Optional
@@ -139,8 +140,9 @@ def create_training_user(request):
 def create_nemo_user_from_new_user(request, training_user_id):
     training_user = get_object_or_404(TrainingUser, pk=training_user_id)
     nemo_new_user_url = reverse("create_or_modify_user", kwargs={"user_id": "new"})
+    safe_notes = urllib.parse.quote(training_user.notes)
     return redirect(
-        f"{nemo_new_user_url}?first_name={training_user.first_name}&last_name={training_user.last_name}&email={training_user.email}&type={training_user.user_type_id if training_user.user_type_id is not None else ''}&correlation_id={training_user_id}"
+        f"{nemo_new_user_url}?first_name={training_user.first_name}&last_name={training_user.last_name}&email={training_user.email}&type={training_user.user_type_id if training_user.user_type_id is not None else ''}&notes={safe_notes}&correlation_id={training_user_id}"
     )
 
 

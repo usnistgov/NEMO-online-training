@@ -33,6 +33,7 @@ class TrainingUser(BaseModel):
     _email = models.EmailField(verbose_name="Email address", db_column="email", null=True, blank=True)
     _user_type = models.ForeignKey(UserType, verbose_name="User type", null=True, blank=True, on_delete=models.SET_NULL)
     nemo_user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(null=True, blank=True, max_length=CHAR_FIELD_MEDIUM_LENGTH)
 
     class Meta:
         ordering = ["_first_name", "_last_name", "nemo_user__first_name", "nemo_user__last_name"]
@@ -62,7 +63,7 @@ class TrainingUser(BaseModel):
         self._email = value
 
     @property
-    def user_type(self) -> UserType:
+    def user_type(self) -> UserType | None:
         return self._user_type or (self.nemo_user.type if self.nemo_user_id else None)
 
     @user_type.setter
@@ -70,7 +71,7 @@ class TrainingUser(BaseModel):
         self._user_type = value
 
     @property
-    def user_type_id(self) -> int:
+    def user_type_id(self) -> int | None:
         return (
             self._user_type_id
             if self._user_type_id is not None
@@ -255,7 +256,7 @@ class TrainingRecord(BaseModel):
         ordering = ["-end", "-due_date"]
 
     def has_training_expired(self) -> bool:
-        return self.due_date and self.due_date < timezone.now()
+        return bool(self.due_date and self.due_date < timezone.now())
 
     def generate_link(self) -> str:
         return get_full_url(
