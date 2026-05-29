@@ -33,7 +33,7 @@ class TrainingUser(BaseModel):
     _email = models.EmailField(verbose_name="Email address", db_column="email", null=True, blank=True)
     _user_type = models.ForeignKey(UserType, verbose_name="User type", null=True, blank=True, on_delete=models.SET_NULL)
     nemo_user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
-    notes = models.TextField(null=True, blank=True, max_length=CHAR_FIELD_MEDIUM_LENGTH)
+    notes = models.CharField(null=True, blank=True, max_length=CHAR_FIELD_MEDIUM_LENGTH)
 
     class Meta:
         ordering = ["_first_name", "_last_name", "nemo_user__first_name", "nemo_user__last_name"]

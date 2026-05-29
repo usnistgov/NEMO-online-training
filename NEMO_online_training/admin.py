@@ -52,6 +52,9 @@ class TrainingUserAdminForm(forms.ModelForm):
     class Meta:
         model = TrainingUser
         fields = "__all__"
+        widgets = {
+            "notes": forms.Textarea(),
+        }
 
     def clean(self):
         cleaned_data = super().clean()
