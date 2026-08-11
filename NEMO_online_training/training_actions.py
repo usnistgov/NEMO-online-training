@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import inspect
 from typing import Dict
 
 from NEMO.utilities import render_email_template
@@ -9,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from NEMO_online_training.fields import UserTypeFilterField
 from NEMO_online_training.utilities import (
     ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
+    ONLINE_TRAINING_ACTION_QUALIFY_TOOL,
     ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED,
     ONLINE_TRAINING_ACTION_SEND_EMAIL,
 )
@@ -208,9 +210,105 @@ class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
             )
 
 
+class QualifyUserOnToolOnlineTrainingHandler(OnlineTrainingActionHandler):
+    """Handler for automatically qualifying a user on specific tools"""
+
+    @property
+    def name(self) -> str:
+        return ONLINE_TRAINING_ACTION_QUALIFY_TOOL
+
+    @property
+    def description(self) -> str:
+        return _("Qualify User on Tool(s)")
+
+    def validate(self, configuration: dict, user_filter: list[str]) -> None:
+        super().validate(configuration, user_filter)
+
+        if UserTypeFilterField.ALL_NEW_USERS in user_filter:
+            raise ValidationError(
+                {"user_filter": _("New users cannot be qualified on tools. They must be NEMO users first.")}
+            )
+
+        if "tool_ids" not in configuration:
+            raise ValidationError({"configuration": _("Configuration must include 'tool_ids' field")})
+
+        tool_ids = configuration.get("tool_ids")
+        if not isinstance(tool_ids, list) or not tool_ids:
+            raise ValidationError({"configuration": _("'tool_ids' must be a non-empty list of integers")})
+
+        if not all(isinstance(t_id, int) for t_id in tool_ids):
+            raise ValidationError({"configuration": _("All items in 'tool_ids' must be integer IDs")})
+
+        # Verify all requested tools exist in the database
+        from NEMO.models import Tool
+
+        existing_tool_ids = set(Tool.objects.filter(id__in=tool_ids).values_list("id", flat=True))
+        missing_tool_ids = set(tool_ids) - existing_tool_ids
+        if missing_tool_ids:
+            missing_str = ", ".join(str(tid) for tid in missing_tool_ids)
+            raise ValidationError(
+                {"configuration": _(f"The following tool IDs do not exist in the system: {missing_str}")}
+            )
+
+        # Check if qualification levels are supported in this version of NEMO
+        if "qualification_level_id" in configuration:
+            try:
+                from NEMO.views.qualifications import qualify
+
+                sig = inspect.signature(qualify)
+                if "qualification_level_id" not in sig.parameters:
+                    raise ValidationError(
+                        {
+                            "configuration": _(
+                                "This version of NEMO does not support qualification levels. Please remove 'qualification_level_id' from your configuration."
+                            )
+                        }
+                    )
+
+                # Verify the qualification level exists in the database
+                from NEMO.models import QualificationLevel
+
+                qual_level_id = configuration["qualification_level_id"]
+                if not QualificationLevel.objects.filter(id=qual_level_id).exists():
+                    raise ValidationError(
+                        {"configuration": _(f"Qualification level ID {qual_level_id} does not exist in the system.")}
+                    )
+            except ImportError:
+                # Fallback if we somehow can't import it during validation
+                pass
+
+    def do_perform(self, action, user_training) -> None:
+        from NEMO.models import Tool
+        from NEMO.views.qualifications import qualify
+
+        # Only applies if they have an established NEMO user account
+        nemo_user = user_training.training_user.nemo_user
+        if not nemo_user:
+            return
+
+        tool_ids = action.configuration.get("tool_ids", [])
+        qualification_level_id = action.configuration.get("qualification_level_id")
+
+        tools = Tool.objects.filter(id__in=tool_ids)
+
+        # Check signature to see if qualification_level_id is accepted
+        sig = inspect.signature(qualify)
+        supports_levels = "qualification_level_id" in sig.parameters
+
+        for tool in tools:
+            # Dynamically build kwargs to ensure backwards compatibility
+            kwargs = {"request_user": nemo_user, "tool": tool, "user": nemo_user}
+
+            if supports_levels and qualification_level_id is not None:
+                kwargs["qualification_level_id"] = qualification_level_id
+
+            qualify(**kwargs)
+
+
 # Registry of all action handlers
 action_handlers: Dict[str, OnlineTrainingActionHandler] = {
     ONLINE_TRAINING_ACTION_EXTEND_ACCESS: ExtendAccessOnlineTrainingHandler(),
     ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED: RemoveTrainingRequiredOnlineTrainingHandler(),
     ONLINE_TRAINING_ACTION_SEND_EMAIL: SendEmailOnlineTrainingHandler(),
+    ONLINE_TRAINING_ACTION_QUALIFY_TOOL: QualifyUserOnToolOnlineTrainingHandler(),
 }
