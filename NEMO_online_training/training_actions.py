@@ -9,9 +9,17 @@ from django.utils.translation import gettext_lazy as _
 from NEMO_online_training.fields import UserTypeFilterField
 from NEMO_online_training.utilities import (
     ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
+    ONLINE_TRAINING_ACTION_GRANT_PHYSICAL_ACCESS,
     ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED,
     ONLINE_TRAINING_ACTION_SEND_EMAIL,
 )
+
+
+def has_new_user_filter(user_filter: list[str]) -> bool:
+    """
+    Helper function to check if user filter includes new users (unlinked to NEMO).
+    """
+    return UserTypeFilterField.ALL_NEW_USERS in user_filter or any(uf.startswith("n|") for uf in user_filter)
 
 
 class OnlineTrainingActionHandler(ABC):
@@ -208,9 +216,71 @@ class SendEmailOnlineTrainingHandler(OnlineTrainingActionHandler):
             )
 
 
+class GrantPhysicalAccessLevelOnlineTrainingHandler(OnlineTrainingActionHandler):
+    """Handler for granting physical access levels to a user"""
+
+    @property
+    def name(self) -> str:
+        return ONLINE_TRAINING_ACTION_GRANT_PHYSICAL_ACCESS
+
+    @property
+    def description(self) -> str:
+        return _("Grant Physical Access Level(s)")
+
+    def validate(self, configuration: dict, user_filter: list[str]) -> None:
+        super().validate(configuration, user_filter)
+
+        if has_new_user_filter(user_filter):
+            raise ValidationError(
+                {"user_filter": _("New users cannot be granted physical access levels. They must be NEMO users first.")}
+            )
+
+        if "physical_access_level_ids" not in configuration:
+            raise ValidationError({"configuration": _("Configuration must include 'physical_access_level_ids' field")})
+
+        pal_ids = configuration.get("physical_access_level_ids")
+        if not isinstance(pal_ids, list) or not pal_ids:
+            raise ValidationError(
+                {"configuration": _("'physical_access_level_ids' must be a non-empty list of integers")}
+            )
+
+        if not all(isinstance(p_id, int) for p_id in pal_ids):
+            raise ValidationError({"configuration": _("All items in 'physical_access_level_ids' must be integer IDs")})
+
+        # Verify all requested physical access levels exist in the database
+        from NEMO.models import PhysicalAccessLevel
+
+        existing_pal_ids = set(PhysicalAccessLevel.objects.filter(id__in=pal_ids).values_list("id", flat=True))
+        missing_pal_ids = set(pal_ids) - existing_pal_ids
+        if missing_pal_ids:
+            missing_str = ", ".join(str(pid) for pid in missing_pal_ids)
+            raise ValidationError(
+                {
+                    "configuration": _(
+                        f"The following physical access level IDs do not exist in the system: {missing_str}"
+                    )
+                }
+            )
+
+    def do_perform(self, action, user_training) -> None:
+        from NEMO.models import PhysicalAccessLevel
+
+        # Only applies if they have an established NEMO user account
+        nemo_user = user_training.training_user.nemo_user
+        if not nemo_user:
+            return
+
+        pal_ids = action.configuration.get("physical_access_level_ids", [])
+        access_levels = PhysicalAccessLevel.objects.filter(id__in=pal_ids)
+
+        if access_levels.exists():
+            nemo_user.physical_access_levels.add(*access_levels)
+
+
 # Registry of all action handlers
 action_handlers: Dict[str, OnlineTrainingActionHandler] = {
     ONLINE_TRAINING_ACTION_EXTEND_ACCESS: ExtendAccessOnlineTrainingHandler(),
     ONLINE_TRAINING_ACTION_REMOVE_TRAINING_REQUIRED: RemoveTrainingRequiredOnlineTrainingHandler(),
     ONLINE_TRAINING_ACTION_SEND_EMAIL: SendEmailOnlineTrainingHandler(),
+    ONLINE_TRAINING_ACTION_GRANT_PHYSICAL_ACCESS: GrantPhysicalAccessLevelOnlineTrainingHandler(),
 }
