@@ -16,6 +16,13 @@ from NEMO_online_training.utilities import (
 )
 
 
+def has_new_user_filter(user_filter: list[str]) -> bool:
+    """
+    Helper function to check if user filter includes new users (unlinked to NEMO).
+    """
+    return UserTypeFilterField.ALL_NEW_USERS in user_filter or any(uf.startswith("n|") for uf in user_filter)
+
+
 class OnlineTrainingActionHandler(ABC):
     """
     Base class for all online training action handlers.
@@ -224,9 +231,9 @@ class QualifyUserOnToolOnlineTrainingHandler(OnlineTrainingActionHandler):
     def validate(self, configuration: dict, user_filter: list[str]) -> None:
         super().validate(configuration, user_filter)
 
-        if UserTypeFilterField.ALL_NEW_USERS in user_filter:
+        if has_new_user_filter(user_filter):
             raise ValidationError(
-                {"user_filter": _("New users cannot be qualified on tools. They must be NEMO users first.")}
+                {"user_filter": _("New users cannot be qualified on tools. They must be NEMO users first")}
             )
 
         if "tool_ids" not in configuration:
