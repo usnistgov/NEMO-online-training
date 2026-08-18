@@ -239,7 +239,7 @@ def public_user_training(request, signed_user_training_id):
         user_training_id = signer.unsign(signed_user_training_id, max_age=max_age)
     except (BadSignature, SignatureExpired) as e:
         if isinstance(e, SignatureExpired) and request.user and request.user.is_authenticated:
-            return redirect("online_training_user", user_training_id=user_training_id)
+            return redirect("online_training_user_training", user_training_id=user_training_id)
         return render(
             request,
             "NEMO_online_training/public/invalid_training_link.html",
