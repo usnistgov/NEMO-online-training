@@ -87,7 +87,7 @@ class ExtendAccessOnlineTrainingHandler(OnlineTrainingActionHandler):
     def validate(self, configuration: dict, user_filter: list[str]) -> None:
         super().validate(configuration, user_filter)
 
-        if UserTypeFilterField.ALL_NEW_USERS in user_filter:
+        if has_new_user_filter(user_filter):
             raise ValidationError({"user_filter": _("New users cannot have their access extended")})
 
         if "extend_by_days" not in configuration:
@@ -124,7 +124,7 @@ class RemoveTrainingRequiredOnlineTrainingHandler(OnlineTrainingActionHandler):
     def validate(self, configuration: dict, user_filter: list[str]) -> None:
         super().validate(configuration, user_filter)
 
-        if UserTypeFilterField.ALL_NEW_USERS in user_filter:
+        if has_new_user_filter(user_filter):
             raise ValidationError(
                 {
                     "user_filter": _(
