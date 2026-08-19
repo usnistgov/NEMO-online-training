@@ -6,13 +6,15 @@ from logging import getLogger
 from typing import Optional
 
 from NEMO.constants import MEDIA_PROTECTED
-from NEMO.decorators import user_office_or_manager_required
+from NEMO.decorators import user_office_or_manager_required, staff_member_or_user_office_required
 from NEMO.models import User, UserType
-from NEMO.utilities import format_datetime, queryset_search_filter, render_email_template
+from NEMO.utilities import format_datetime, queryset_search_filter, render_email_template, send_mail
+from NEMO.views.customization import get_media_file_contents
 from NEMO.views.pagination import SortedPaginator
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -26,7 +28,8 @@ from django.views.static import serve
 
 from NEMO_online_training.customization import OnlineTrainingCustomization
 from NEMO_online_training.forms import TrainingRecordForm, TrainingUserForm
-from NEMO_online_training.models import Training, TrainingRecord, TrainingUser
+from NEMO_online_training.models import Training, TrainingRecord, TrainingUser, TrainingAttempt
+from NEMO_online_training.utilities import ONLINE_TRAINING_EMAIL_CATEGORY
 
 online_training_logger = getLogger(__name__)
 
@@ -73,9 +76,6 @@ def user_online_trainings(request, training_user_id=None):
         for online_training in available_trainings:
             if online_training.applies_to_user(training_user):
                 training_user.available_trainings.append(online_training)
-
-    # if bool(request.GET.get("csv", False)):
-    #     return export_training_users(request, training_users.order_by("-last_updated"))
 
     dictionary = {
         "page": page,
@@ -173,9 +173,23 @@ def training_without_assignment(request, online_training_id):
             "NEMO_online_training/error_message.html",
             {"title": "Error", "message": "This training is not available for your user type"},
         )
-    online_user_training, created = TrainingRecord.objects.get_or_create(
-        training_user=training_user, training=online_training, end=None
-    )
+
+    uncleared_failures = TrainingRecord.objects.filter(
+        training_user=training_user, training=online_training, failed=True, cleared_for_retake=False
+    ).exists()
+    if uncleared_failures:
+        return render(
+            request,
+            "NEMO_online_training/error_message.html",
+            {
+                "title": "Error",
+                "message": "You have failed this training and have not been cleared to retake it. Please contact staff.",
+            },
+        )
+
+    online_user_training, created = TrainingRecord.objects.filter(
+        Q(due_date__gte=timezone.now()) | Q(due_date__isnull=True)
+    ).get_or_create(training_user=training_user, training=online_training, end=None, failed=False)
 
     return redirect("online_training_user_training", user_training_id=online_user_training.id)
 
@@ -205,11 +219,14 @@ def add_training_to_user(request, training_user_id, online_training_id):
     form.instance.training = online_training
 
     if form.is_valid():
+        # Automatically clear any previously failed attempts
+        TrainingRecord.objects.filter(
+            training_user=training_user, training=online_training, failed=True, cleared_for_retake=False
+        ).update(cleared_for_retake=True)
         online_training_user = form.save()
         online_training_user.generate_and_send_new_email()
         return JsonResponse({"success": True})
     else:
-        # Return form errors in a format that JavaScript can handle
         errors = {}
         for field, error_list in form.errors.items():
             errors[field] = error_list
@@ -248,35 +265,46 @@ def public_user_training(request, signed_user_training_id):
 
     online_training_user.training_user.last_accessed = timezone.now()
     online_training_user.training_user.save(update_fields=["last_accessed"])
+
     error = check_training_validity(online_training_user)
     if error:
         return render(request, "NEMO_online_training/error_message.html", {"title": "Error", "message": error})
-    else:
-        completion_token = TimestampSigner().sign(user_training_id)
-        online_training_user.start = timezone.now()
-        online_training_user.save(update_fields=["start"])
 
-        training_context = {
-            "training_user": online_training_user.training_user,
-            "training": online_training_user.training,
-            "record": online_training_user,
-            "completion_token": completion_token,
-        }
-
-        online_training_rendered = render_email_template(
-            online_training_user.training.html_content, training_context, request
-        )
+    # --- QUIZ ENGINE: Verify attempt eligibility ---
+    eligibility = check_attempt_eligibility(online_training_user)
+    if not eligibility["allowed"]:
         return render(
             request,
-            "NEMO_online_training/public/user_training.html",
-            {
-                "online_training_user": online_training_user,
-                "online_training_rendered": online_training_rendered,
-                "expires_at": online_training_user.start
-                + timedelta(minutes=online_training_user.training.completion_time_limit),
-                "completion_token": completion_token,
-            },
+            "NEMO_online_training/error_message.html",
+            {"title": "Training Locked", "message": eligibility["message"]},
         )
+    # -----------------------------------------------
+
+    completion_token = TimestampSigner().sign(user_training_id)
+    online_training_user.start = timezone.now()
+    online_training_user.save(update_fields=["start"])
+
+    training_context = {
+        "training_user": online_training_user.training_user,
+        "training": online_training_user.training,
+        "record": online_training_user,
+        "completion_token": completion_token,
+    }
+
+    online_training_rendered = render_email_template(
+        online_training_user.training.html_content, training_context, request
+    )
+    return render(
+        request,
+        "NEMO_online_training/public/user_training.html",
+        {
+            "online_training_user": online_training_user,
+            "online_training_rendered": online_training_rendered,
+            "expires_at": online_training_user.start
+            + timedelta(minutes=online_training_user.training.completion_time_limit),
+            "completion_token": completion_token,
+        },
+    )
 
 
 @require_POST
@@ -303,9 +331,7 @@ def public_complete_user_training(request):
 
     try:
         signer = TimestampSigner()
-        # Just check validity
         user_training_id = signer.unsign(signed_user_training_id)
-        # Now check the time limit
         online_training_user = get_object_or_404(TrainingRecord, pk=user_training_id)
         dynamic_limit_seconds = online_training_user.training.completion_time_limit * 60
         signer.unsign(signed_user_training_id, max_age=dynamic_limit_seconds)
@@ -327,9 +353,27 @@ def public_complete_user_training(request):
                 data[key] = values[0]
             else:
                 data[key] = values
-        online_training_user.complete(data)
 
-    return HttpResponse()
+        # --- QUIZ ENGINE: Process submission and grading ---
+        attempt = process_training_submission(online_training_user, data)
+        max_attempts = online_training_user.training.max_attempts
+        attempts_taken = TrainingAttempt.objects.filter(training_record=online_training_user).count()
+        if not max_attempts:  # 0 or None means unlimited
+            attempts_remaining = "unlimited"
+        else:
+            attempts_remaining = max_attempts - attempts_taken
+        # Only finalize the record (mark complete, fire actions) if they passed
+        if attempt.passed:
+            online_training_user.complete(data)
+
+        return JsonResponse(
+            {
+                "success": True,
+                "passed": attempt.passed,
+                "score": attempt.score_percentage,
+                "attempts_remaining": attempts_remaining,
+            }
+        )
 
 
 @xframe_options_sameorigin
@@ -339,7 +383,6 @@ def serve_training_media_file(request, signed_user_training_id, file_path):
         signer = TimestampSigner()
         max_age = OnlineTrainingCustomization.get_int("online_training_link_validity_minutes") * 60
 
-        # Just check validity
         user_training_id = signer.unsign(signed_user_training_id)
         online_training_user = get_object_or_404(TrainingRecord, id=user_training_id)
         if online_training_user.completed():
@@ -349,7 +392,6 @@ def serve_training_media_file(request, signed_user_training_id, file_path):
                 {"title": "Success", "message": _("This training has been completed!")},
             )
 
-        # Now check the time limit
         user_training_id = signer.unsign(signed_user_training_id, max_age=max_age)
     except (BadSignature, SignatureExpired) as e:
         if isinstance(e, SignatureExpired) and request.user and request.user.is_authenticated:
@@ -369,8 +411,192 @@ def serve_training_media_file(request, signed_user_training_id, file_path):
 def check_training_validity(online_user_training: TrainingRecord) -> Optional[Promise | str]:
     if not online_user_training.training.enabled:
         return _("This training is not available anymore!")
+    if getattr(online_user_training, "failed", False):
+        return _("You have failed this training and exhausted all attempts. Please contact staff.")
     if online_user_training.has_training_expired():
         return _(f"This training expired on {format_datetime(online_user_training.due_date)}")
     if online_user_training.end:
         return _("This training has been completed!")
     return None
+
+
+def check_attempt_eligibility(training_record) -> dict:
+    """
+    Evaluates if a user is currently allowed to take/retake a quiz.
+    Checks failure lockouts and cooldown periods.
+    """
+    if getattr(training_record, "failed", False):
+        return {
+            "allowed": False,
+            "message": _("You have exhausted all attempts. Please contact staff to reset your training."),
+        }
+
+    training = training_record.training
+    attempts_taken = training_record.attempts.count()
+
+    # Check cooldown if they have failed previously but still have attempts remaining
+    if attempts_taken > 0 and not training_record.end:
+        last_attempt = training_record.attempts.order_by("-timestamp").first()
+
+        if training.retry_cooldown_minutes and last_attempt:
+            next_allowed_time = last_attempt.timestamp + timedelta(minutes=training.retry_cooldown_minutes)
+
+            if timezone.now() < next_allowed_time:
+                return {
+                    "allowed": False,
+                    "message": _(f"You did not pass. You can try again on {format_datetime(next_allowed_time)}."),
+                }
+
+    return {"allowed": True}
+
+
+def process_training_submission(training_record, user_responses):
+    """
+    Grades the submission against the answer key.
+    Creates a TrainingAttempt audit trail and handles failure logic.
+    """
+    training = training_record.training
+
+    # SCENARIO A: Simple Completion (No Quiz Configured)
+    if not training.answer_key or training.passing_score_percentage is None:
+        attempt = TrainingAttempt.objects.create(
+            training_record=training_record, score_percentage=100.0, passed=True, responses=user_responses
+        )
+        return attempt
+
+    # SCENARIO B: Grading Required
+    correct_count = 0
+    answer_key = training.answer_key if isinstance(training.answer_key, dict) else {}
+    graded_questions = {k: v for k, v in answer_key.items() if not k.startswith("_")}
+    total_questions = len(graded_questions)
+    for question_key, correct_answer in graded_questions.items():
+        user_answer = user_responses.get(question_key)
+        if isinstance(correct_answer, list):
+            # Ensure user answer is list for comparison
+            if not isinstance(user_answer, list):
+                user_answer = [user_answer] if user_answer else []
+
+            # Order independent comparison using Sets
+            if set(str(x).strip() for x in correct_answer) == set(str(x).strip() for x in user_answer):
+                correct_count += 1
+        else:
+            if str(correct_answer).strip() == str(user_answer).strip():
+                correct_count += 1
+
+    score = (correct_count / total_questions) * 100 if total_questions > 0 else 100
+    passed = score >= training.passing_score_percentage
+    attempt = TrainingAttempt.objects.create(
+        training_record=training_record, score_percentage=score, passed=passed, responses=user_responses
+    )
+
+    if not passed:
+        attempts_taken = training_record.attempts.count()
+        if training.max_attempts and attempts_taken >= training.max_attempts:
+            training_record.failed = True
+            training_record.save(update_fields=["failed"])
+            _notify_staff_of_failure(training_record)
+    return attempt
+
+
+def _notify_staff_of_failure(training_record):
+    """Fires email when user completely exhausts all retries."""
+
+    target_email = None
+
+    try:
+        target_email = training_record.training.answer_key.get("_failure_email")
+    except Exception:
+        pass
+    if not target_email:
+        target_email = OnlineTrainingCustomization.get("online_training_default_failure_email_address")
+    if target_email:
+        staff_emails = [e.strip() for e in target_email.split(",") if e.strip()]
+
+    try:
+        email_template_content = get_media_file_contents("online_training_failure_email.html")
+    except:
+        pass
+    if not email_template_content or not target_email:
+        return
+
+    message = render_email_template(
+        email_template_content,
+        {
+            "training_user": training_record.training_user,
+            "training": training_record.training,
+            "record": training_record,
+        },
+    )
+    send_mail(
+        subject=f"Training Failed: {training_record.training_user.first_name} {training_record.training_user.last_name}",
+        content=message,
+        from_email=None,
+        to=staff_emails,
+        email_category=ONLINE_TRAINING_EMAIL_CATEGORY,
+    )
+
+
+@staff_member_or_user_office_required
+def view_quiz_responses(request, record_id):
+    record = get_object_or_404(TrainingRecord, id=record_id)
+    training = record.training
+
+    attempts = record.attempts.order_by("timestamp")
+    answer_key = training.answer_key if isinstance(training.answer_key, dict) else {}
+
+    training_context = {
+        "training_user": record.training_user,
+        "training": training,
+        "record": record,
+        "completion_token": "",
+    }
+    rendered_html = render_email_template(training.html_content, training_context, request)
+
+    attempts_data = []
+
+    if attempts.exists():
+        for idx, attempt in enumerate(attempts, start=1):
+            attempts_data.append(
+                {
+                    "number": idx,
+                    "score": attempt.score_percentage,
+                    "passed": attempt.passed,
+                    "timestamp": attempt.timestamp,
+                    "responses_json": json.dumps(attempt.responses or {}),
+                }
+            )
+    else:
+        # Fallback for non-graded / completion-only records with data directly on the record
+        user_responses = getattr(record, "end_data", None) or getattr(record, "completion_data", None) or {}
+        if user_responses:
+            attempts_data.append(
+                {
+                    "number": 1,
+                    "score": 100.0 if record.completed() else 0.0,
+                    "passed": record.completed(),
+                    "timestamp": record.end or record.start,
+                    "responses_json": json.dumps(user_responses),
+                }
+            )
+
+    context = {
+        "record": record,
+        "attempts_data": attempts_data,
+        "rendered_html": rendered_html,
+        "answer_key_json": json.dumps(answer_key),
+    }
+
+    return render(request, "NEMO_online_training/user_trainings/responses_modal_content.html", context)
+
+
+@staff_member_or_user_office_required(login_url=None)
+@require_POST
+def clear_for_retake(request, record_id):
+    # Retrieve the failed record
+    record = get_object_or_404(TrainingRecord, id=record_id)
+
+    # Update the flag
+    record.cleared_for_retake = True
+    record.save()
+
+    return JsonResponse({"success": True})

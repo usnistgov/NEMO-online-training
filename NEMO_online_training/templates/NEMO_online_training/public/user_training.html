@@ -12,19 +12,81 @@
     <h3>{{ online_training_user.training.name }}</h3>
     {{ online_training_rendered|safe }}
     <script>
-        function training_completed(data)
-        {
-            if(data === undefined)
-            {
-                data = {};
+        function training_completed(inputData, event) {
+            if (event) event.preventDefault();
+
+            let dataString = "";
+            let $submitBtn = null;
+
+            if (inputData instanceof Event) {
+                event = inputData;
+                event.preventDefault();
+                inputData = event.target;
             }
-            if (data.constructor === Object)
-            {
-                data = $.param(data)
+
+            if (inputData instanceof HTMLFormElement) {
+                dataString = $(inputData).serialize();
+                $submitBtn = $(inputData).find('button[type="submit"], input[type="submit"]');
+            } else {
+                if (inputData === undefined) inputData = {};
+                dataString = $.param(inputData);
             }
-            data += "&completion_token={{ completion_token }}";
-            ajax_post("{% url 'public_online_training_complete_user_training' %}", data, function() {window.location.reload();}, ajax_failure_callback("There was a problem submitting your data."));
+
+            if (!$submitBtn || $submitBtn.length === 0) {
+                $submitBtn = $('button[type="submit"], #completeBtn');
+            }
+
+            let originalText = "";
+            if ($submitBtn && $submitBtn.length > 0) {
+                $submitBtn.prop('disabled', true);
+                originalText = $submitBtn.text() || $submitBtn.val();
+                $submitBtn.text("Submitting...");
+            }
+
+            dataString += (dataString.length > 0 ? "&" : "") + "completion_token={{ completion_token }}";
+
+            let default_failure = ajax_failure_callback("There was a problem submitting your training.");
+
+            ajax_post(
+                "{% url 'public_online_training_complete_user_training' %}",
+                dataString,
+                function(response_data) {
+                    // Check if training is graded using Django template context
+                    const isGraded = {% if online_training_user.training.answer_key %}true{% else %}false{% endif %};
+
+                    if (isGraded && response_data) {
+                        if (response_data.passed) {
+                            alert("Congratulations! You passed with a score of " + response_data.score + "%");
+                        } else {
+                            let attemptMsg = "";
+                            if (response_data.attempts_remaining === "unlimited" || response_data.attempts_remaining === null || response_data.attempts_remaining === undefined) {
+                                attemptMsg = "You have unlimited attempts. You can try again.";
+                            } else if (response_data.attempts_remaining > 0) {
+                                attemptMsg = "Attempts remaining: " + response_data.attempts_remaining;
+                            } else {
+                                attemptMsg = "You have no attempts remaining. Please contact staff.";
+                            }
+
+                            alert("Quiz Failed. Score: " + response_data.score + "%\n" + attemptMsg);
+                        }
+                    }
+                    window.location.href = "{% url 'online_user_trainings' %}";
+                },
+                function(xhr, status, error) {
+                    // Restore button on failure
+                    if ($submitBtn && $submitBtn.length > 0) {
+                        $submitBtn.prop('disabled', false);
+                        $submitBtn.text(originalText);
+                    }
+                    default_failure(xhr, status, error);
+                }
+            );
         }
+
+        // Auto-listen for forms with id="training-quiz-form" (using jQuery delegation)
+        $(document).on("submit", "#training-quiz-form", function(e) {
+            training_completed(this, e);
+        });
 
         function update_timer(timer_interval_id)
         {

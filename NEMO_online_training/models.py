@@ -185,10 +185,36 @@ class Training(SerializationByNameModel):
                 "</ul>"
                 "<p>Media files can be used with <code>{% url 'public_online_training_media' completion_token 'media_file_path' %}</code></p>"
                 "<p>Upon completion, call the JS function: <code>training_completed(dict_data)</code> to complete the training</p>"
+                "<p>Forms with ID <code>training-quiz-form</code> will automatically have the form data saved in the training attempt</p>"
+                "<p>To display user responses in the View Responses popup: Ensure that the keys in your <code>dataToSave</code> JSON object exactly match the id or name attributes of the input elements in your HTML</p>"
             )
         ),
     )
     creation_time = models.DateTimeField(auto_now_add=True)
+    answer_key = models.JSONField(
+        blank=True,
+        null=True,
+        help_text=mark_safe(
+            (
+                "<p>JSON mapping of inputs to correct answers. Leave blank to only require completion.</p>"
+                "<p>Entries starting with "
+                "_"
+                " are ignored during grading. This can be used to pass an email address or list to send quiz results</p>"
+            )
+        ),
+    )
+    passing_score_percentage = models.IntegerField(
+        blank=True, null=True, help_text=_("Required score to pass (e.g. 80). Leave blank if no quiz is required.")
+    )
+    max_attempts = models.IntegerField(
+        blank=True,
+        null=True,
+        default=0,
+        help_text=_("Maximum allowed attempts. Set to 0 or leave blank for unlimited."),
+    )
+    retry_cooldown_minutes = models.IntegerField(
+        blank=True, null=True, default=0, help_text=_("Wait time in minutes between failed attempts.")
+    )
 
     class Meta:
         ordering = ["name"]
@@ -251,6 +277,12 @@ class TrainingRecord(BaseModel):
     )
     creation_time = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
+    failed = models.BooleanField(
+        default=False, help_text=_("Indicates if the user has exhausted all attempts and failed.")
+    )
+    cleared_for_retake = models.BooleanField(
+        default=False, help_text="If True, the user is permitted to attempt this training again after failing."
+    )
 
     class Meta:
         ordering = ["-end", "-due_date"]
@@ -308,6 +340,7 @@ class TrainingRecord(BaseModel):
                     training=self.training,
                     end__isnull=True,
                     due_date__gte=timezone.now(),
+                    failed=False,
                 )
                 .exclude(id=self.id)
                 .exists()
@@ -333,6 +366,14 @@ class TrainingRecord(BaseModel):
     def __str__(self):
         due_date = f", due {format_datetime(self.due_date, 'SHORT_DATETIME_FORMAT')}" if self.due_date else ""
         return f"{self.training.name} - {self.training_user.get_name()}{due_date}"
+
+
+class TrainingAttempt(models.Model):
+    training_record = models.ForeignKey("TrainingRecord", on_delete=models.CASCADE, related_name="attempts")
+    timestamp = models.DateTimeField(auto_now_add=True)
+    score_percentage = models.FloatField(null=True, blank=True)
+    passed = models.BooleanField(default=False)
+    responses = models.JSONField(null=True, blank=True, help_text=_("The exact payload submitted by the user."))
 
 
 def notification_qs_for_training(training: TrainingRecord):
