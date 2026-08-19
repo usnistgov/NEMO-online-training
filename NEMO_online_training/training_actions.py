@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import inspect
 from typing import Dict
 
 from NEMO.utilities import render_email_template
@@ -322,29 +321,21 @@ class QualifyUserOnToolOnlineTrainingHandler(OnlineTrainingActionHandler):
         # Check if qualification levels are supported in this version of NEMO
         if "qualification_level_id" in configuration:
             try:
-                from NEMO.views.qualifications import qualify
-
-                sig = inspect.signature(qualify)
-                if "qualification_level_id" not in sig.parameters:
-                    raise ValidationError(
-                        {
-                            "configuration": _(
-                                "This version of NEMO does not support qualification levels. Please remove 'qualification_level_id' from your configuration."
-                            )
-                        }
-                    )
-
-                # Verify the qualification level exists in the database
                 from NEMO.models import QualificationLevel
-
-                qual_level_id = configuration["qualification_level_id"]
-                if not QualificationLevel.objects.filter(id=qual_level_id).exists():
-                    raise ValidationError(
-                        {"configuration": _(f"Qualification level ID {qual_level_id} does not exist in the system.")}
-                    )
             except ImportError:
-                # Fallback if we somehow can't import it during validation
-                pass
+                raise ValidationError(
+                    {
+                        "configuration": _(
+                            "This version of NEMO does not support qualification levels. Please remove 'qualification_level_id' from your configuration."
+                        )
+                    }
+                )
+
+            qual_level_id = configuration["qualification_level_id"]
+            if not QualificationLevel.objects.filter(id=qual_level_id).exists():
+                raise ValidationError(
+                    {"configuration": _(f"Qualification level ID {qual_level_id} does not exist in the system.")}
+                )
 
     def do_perform(self, action, user_training) -> None:
         from NEMO.models import Tool
@@ -360,17 +351,10 @@ class QualifyUserOnToolOnlineTrainingHandler(OnlineTrainingActionHandler):
 
         tools = Tool.objects.filter(id__in=tool_ids)
 
-        # Check signature to see if qualification_level_id is accepted
-        sig = inspect.signature(qualify)
-        supports_levels = "qualification_level_id" in sig.parameters
-
         for tool in tools:
-            # Dynamically build kwargs to ensure backwards compatibility
             kwargs = {"request_user": nemo_user, "tool": tool, "user": nemo_user}
-
-            if supports_levels and qualification_level_id is not None:
+            if qualification_level_id:
                 kwargs["qualification_level_id"] = qualification_level_id
-
             qualify(**kwargs)
 
 
