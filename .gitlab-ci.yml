@@ -16,7 +16,7 @@ variables:
 .test-ce: &test-ce
   stage: test
   script:
-    - echo 'INSTALLED_APPS += ["NEMO.apps.nemo_ce"]' >> NEMO_online_training/test/test_settings.py
+    - echo 'INSTALLED_APPS += ["NEMO.apps.nemo_ce"]' >> NEMO_online_training/tests/test_settings.py
     - python -m pip install .["NEMO-CE"]
     - python ./run_tests.py
 
