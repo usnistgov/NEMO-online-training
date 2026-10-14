@@ -9,8 +9,7 @@ variables:
 .test: &test
   stage: test
   script:
-    - python -m pip install git+https://github.com/usnistgov/NEMO.git@8.1.0.dev
-    - python -m pip install .
+    - python -m pip install .["NEMO"]
     - python ./run_tests.py
 
 .test-ce: &test-ce
@@ -37,19 +36,19 @@ Test NEMO python 3.13:
   <<: *test
   image: python:3.13
 
-.Test NEMO-CE python 3.10:
+Test NEMO-CE python 3.10:
   <<: *test-ce
   image: python:3.10
 
-.Test NEMO-CE python 3.11:
+Test NEMO-CE python 3.11:
   <<: *test-ce
   image: python:3.11
 
-.Test NEMO-CE python 3.12:
+Test NEMO-CE python 3.12:
   <<: *test-ce
   image: python:3.12
 
-.Test NEMO-CE python 3.13:
+Test NEMO-CE python 3.13:
   <<: *test-ce
   image: python:3.13
 
