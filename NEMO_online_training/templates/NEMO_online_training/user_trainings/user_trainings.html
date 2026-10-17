@@ -56,7 +56,7 @@
                 {% else %}
                     <br>
                 {% endif %}
-                <div id="main-user-training-table">
+                <div id="main-user-training-table" style="position: relative">
                     <div class="table-responsive" style="width: 100%">
                         <table class="table table-bordered table-condensed table-align-middle thead-light">
                             <thead>
@@ -125,21 +125,19 @@
                                         {% endif %}
                                     </tr>
                                     <tr id="trainings_{{ training_user.id }}" class="collapse in">
-                                        <td colspan="{% if user_is_staff %}{% if user_types %}6{% else %}5{% endif %}{% else %}4{% endif %}"
+                                        <td colspan="{% if user_is_staff %}{% if user_types %}7{% else %}6{% endif %}{% else %}5{% endif %}"
                                             style="padding: 0">
                                             <div class="online-training-sub-table-wrapper">
-                                                <table class="table table-borderless table-condensed table-hover"
-                                                       style="table-layout: fixed;
-                                                              width: 100%;
-                                                              margin-bottom: 0">
+                                                <table class="table table-borderless table-condensed table-hover" style="width: 100%; margin-bottom: 0">
                                                     <thead>
                                                         <tr class="online-training-sub-table-header">
                                                             <th class="">Training</th>
-                                                            <th class="col-md-2 text-center">Available since</th>
-                                                            <th class="col-md-2 text-center">Due</th>
-                                                            <th class="col-md-2 text-center">Completed</th>
-                                                            {% if user_is_staff %}<th class="col-md-2 text-center">Completion time</th>{% endif %}
-                                                            <th class="col-md-2 text-center">Action</th>
+                                                            <th class="text-center">Available since</th>
+                                                            <th class="text-center">Due</th>
+                                                            <th class="text-center">Completed</th>
+                                                            {% if user_is_staff %}<th class="text-center">Completion time</th>{% endif %}
+                                                            <th class="text-center">Status</th>
+                                                            <th class="text-center">Action</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -148,10 +146,20 @@
                                                                 <td>{{ training_record.training.name }}</td>
                                                                 <td class="text-center">{{ training_record.creation_time|date:"SHORT_DATETIME_FORMAT" }}</td>
                                                                 <td class="text-center">
-                                                                    {% if training_record.status == 'IN_PROGRESS' and not training_record.has_training_expired %}
-                                                                        {{ training_record.due_date|timeuntil }}
-                                                                    {% else %}
-                                                                        {{ training_record.due_date|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}
+                                                                    <span id="due_date_display_{{ training_record.id }}">
+                                                                        {% if training_record.status == 'IN_PROGRESS' and not training_record.has_training_expired %}
+                                                                            {{ training_record.due_date|timeuntil }}
+                                                                        {% else %}
+                                                                            {{ training_record.due_date|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}
+                                                                        {% endif %}
+                                                                    </span>
+                                                                    {% if user_is_staff and not training_record.end %}
+                                                                        <span id="due_date_input_group_{{ training_record.id }}" style="display: none;">
+                                                                            <input type="text"
+                                                                                   id="due_date_input_{{ training_record.id }}"
+                                                                                   class="form-control input-sm due-date-picker text-center"
+                                                                                   value="{{ training_record.due_date|input_date_format }}">
+                                                                        </span>
                                                                     {% endif %}
                                                                 </td>
                                                                 <td class="text-center">{{ training_record.end|default_if_none:""|date:"SHORT_DATETIME_FORMAT" }}</td>
@@ -164,25 +172,59 @@
                                                                         {% endif %}
                                                                     </td>
                                                                 {% endif %}
-                                                                <td class="text-right">
+                                                                <td class="text-center">
                                                                     {% if training_record.status == 'FAILED' %}
                                                                         <span class="label label-danger">Failed</span>
+                                                                    {% elif training_record.status == 'COMPLETED' %}
+                                                                        <span class="label label-success">Completed</span>
+                                                                    {% else %}
+                                                                        {% if training_record.has_training_expired %}
+                                                                            <span class="label label-danger">Expired</span>
+                                                                        {% else %}
+                                                                            <span class="label label-warning">Pending</span>
+                                                                        {% endif %}
+                                                                    {% endif %}
+                                                                </td>
+                                                                <td class="text-right">
+                                                                    {% if training_record.status == 'FAILED' %}
                                                                         {% if user_is_staff %}
                                                                             <button class="btn btn-info btn-xs" onclick="clear_for_retake({{ training_record.id }})">Clear for retake</button>
                                                                         {% endif %}
-                                                                    {% elif training_record.status == 'COMPLETED' %}
-                                                                        <span class="label label-success">Completed</span>
-                                                                    {% elif training_record.has_training_expired %}
-                                                                        <span class="label label-danger">Expired</span>
-                                                                    {% else %}
+                                                                    {% elif training_record.status != 'COMPLETED' %}
+                                                                        <div id="record_actions_{{ training_record.id }}"
+                                                                             class="btn-group-vertical"
+                                                                             role="group"
+                                                                             style="width: 100%">
+                                                                            {% if training_record.has_training_expired %}
+                                                                                {% if user_is_staff %}
+                                                                                    <button class="btn btn-default btn-xs" onclick="show_inline_due_date_edit({{ training_record.id }})">
+                                                                                        Edit due date
+                                                                                    </button>
+                                                                                {% endif %}
+                                                                            {% else %}
+                                                                                {% if user.id == training_user.nemo_user.id %}
+                                                                                    <a class="btn btn-success btn-xs" href="{% url 'online_training_user_training' training_record.id %}">Complete</a>
+                                                                                {% endif %}
+                                                                                {% if user_is_staff %}
+                                                                                    <button class="btn btn-warning btn-xs"
+                                                                                            onclick="send_email_link_for_all_trainings([{{ training_record.id }}])">
+                                                                                        Send new link
+                                                                                    </button>
+                                                                                    <button class="btn btn-default btn-xs" onclick="show_inline_due_date_edit({{ training_record.id }})">
+                                                                                        Edit due date
+                                                                                    </button>
+                                                                                {% endif %}
+                                                                            {% endif %}
+                                                                        </div>
                                                                         {% if user_is_staff %}
-                                                                            <button class="btn btn-warning btn-xs"
-                                                                                    onclick="send_email_link_for_all_trainings([{{ training_record.id }}])">
-                                                                                Send new link
-                                                                            </button>
-                                                                        {% endif %}
-                                                                        {% if user.id == training_user.nemo_user.id %}
-                                                                            <a class="btn btn-success btn-xs" href="{% url 'online_training_user_training' training_record.id %}">Complete</a>
+                                                                            <div id="record_edit_actions_{{ training_record.id }}"
+                                                                                 class="btn-group-vertical"
+                                                                                 role="group"
+                                                                                 style="display: none;
+                                                                                        width: 100%">
+                                                                                <button class="btn btn-success btn-xs" onclick="save_inline_due_date({{ training_record.id }})">Save</button>
+                                                                                <button class="btn btn-default btn-xs" onclick="cancel_inline_due_date({{ training_record.id }})">Cancel</button>
+                                                                            </div>
                                                                         {% endif %}
                                                                     {% endif %}
                                                                 </td>
@@ -213,13 +255,16 @@
                                                                 </td>
                                                                 <td class="text-center">-</td>
                                                                 <td class="text-center">-</td>
+                                                                <td class="text-center">-</td>
                                                                 <td class="text-right">
-                                                                    <button class="btn btn-success btn-xs" onclick="save_new_training({{ training_user.id }})">Save & send</button>
-                                                                    <button class="btn btn-default btn-xs" onclick="cancel_add_training({{ training_user.id }})">Cancel</button>
+                                                                    <div class="btn-group-vertical" role="group" style="width: 100%">
+                                                                        <button class="btn btn-success btn-xs" onclick="save_new_training({{ training_user.id }})">Save & send</button>
+                                                                        <button class="btn btn-default btn-xs" onclick="cancel_add_training({{ training_user.id }})">Cancel</button>
+                                                                    </div>
                                                                 </td>
                                                             </tr>
                                                             <tr>
-                                                                <td colspan="{% if user_is_staff %}6{% else %}5{% endif %}"
+                                                                <td colspan="{% if user_is_staff %}7{% else %}6{% endif %}"
                                                                     style="text-align: center;
                                                                            padding: 5px;
                                                                            border-top: 1px solid #ccc">
@@ -262,6 +307,57 @@
         }
     }
 
+    function show_inline_due_date_edit(record_id)
+    {
+        $('#due_date_display_' + record_id).hide();
+        $('#due_date_input_group_' + record_id).show();
+        $('#record_actions_' + record_id).hide();
+        $('#record_edit_actions_' + record_id).show();
+    }
+
+    function cancel_inline_due_date(record_id)
+    {
+        $('#due_date_input_group_' + record_id).hide();
+        $('#due_date_display_' + record_id).show();
+        $('#record_edit_actions_' + record_id).hide();
+        $('#record_actions_' + record_id).show();
+    }
+
+    function save_inline_due_date(record_id)
+    {
+        const due_date = $('#due_date_input_' + record_id).val();
+
+        ajax_post(
+            build_django_url("{% url 'online_training_edit_training_record_due_date' '99999' %}", ["99999"], [record_id]),
+            due_date ? {due_date: due_date} : {},
+            function () { location.reload(); },
+            function(response) {
+                let error_message = 'Unable to update due date:\n';
+                if (response.responseJSON && response.responseJSON.errors)
+                {
+                    const errors = response.responseJSON.errors;
+                    for (const field in errors)
+                    {
+                        if (field === '__all__')
+                        {
+                            error_message += errors[field].join('\n') + '\n';
+                        }
+                        else
+                        {
+                            const field_name = field.replace('_', ' ').charAt(0).toUpperCase() + field.replace('_', ' ').slice(1);
+                            error_message += field_name + ': ' + errors[field].join(', ') + '\n';
+                        }
+                    }
+                }
+                else
+                {
+                    error_message += response.responseText || 'An unknown error occurred';
+                }
+                alert(error_message);
+            }
+        );
+    }
+
     function show_add_training_row(user_id)
     {
         $('#add_training_row' + user_id).show();
@@ -281,7 +377,8 @@
         const training_id = $('#training_select_' + user_id).val();
         const due_date = $('#due_date_' + user_id).val();
 
-        if (!training_id) {
+        if (!training_id)
+        {
             alert('Please select a training');
             return;
         }
@@ -289,23 +386,28 @@
         ajax_post(
             build_django_url("{% url 'online_training_add_training_to_user' '99999' '88888' %}", ["99999", "88888"], [user_id, training_id]),
             due_date ? {due_date: due_date} : {},
-            function () {
-                location.reload();
-            },
+            function () { location.reload(); },
             function(response) {
                 // Handle validation errors from Django form
                 let error_message = 'Unable to add training:\n';
-                if (response.responseJSON && response.responseJSON.errors) {
+                if (response.responseJSON && response.responseJSON.errors)
+                {
                     const errors = response.responseJSON.errors;
-                    for (const field in errors) {
-                        if (field === '__all__') {
+                    for (const field in errors)
+                    {
+                        if (field === '__all__')
+                        {
                             error_message += errors[field].join('\n') + '\n';
-                        } else {
+                        }
+                        else
+                        {
                             const field_name = field.replace('_', ' ').charAt(0).toUpperCase() + field.replace('_', ' ').slice(1);
                             error_message += field_name + ': ' + errors[field].join(', ') + '\n';
                         }
                     }
-                } else {
+                }
+                else
+                {
                     error_message += response.responseText || 'An unknown error occurred';
                 }
                 alert(error_message);

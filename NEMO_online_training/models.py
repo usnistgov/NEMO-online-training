@@ -358,14 +358,13 @@ class TrainingRecord(BaseModel):
             handler.perform(action, self)
 
     def clean(self):
-        if self.training_user and self.training:
+        if self.training_user_id and self.training_id:
             # Check for duplicate incomplete trainings
             if (
                 TrainingRecord.objects.filter(
                     training_user=self.training_user,
                     training=self.training,
                     end__isnull=True,
-                    due_date__gte=timezone.now(),
                     status=TrainingRecord.TrainingStatus.IN_PROGRESS,
                 )
                 .exclude(id=self.id)
