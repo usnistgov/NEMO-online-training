@@ -157,6 +157,7 @@ def user_online_trainings(request, training_user_id=None):
 
     dictionary = {
         "page": page,
+        "extra_params": urllib.parse.urlencode({"training_status": selected_status, "user_type": selected_user_type}),
         "user_types": UserType.objects.all(),
         "user_is_staff": user_has_staff_permissions,
         "single_user_view": single_user_view,

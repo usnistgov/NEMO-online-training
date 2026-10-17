@@ -56,7 +56,7 @@
                 {% else %}
                     <br>
                 {% endif %}
-                <div id="main-user-training-table" style="position: relative">
+                <div id="main-user-training-table">
                     <div class="table-responsive" style="width: 100%">
                         <table class="table table-bordered table-condensed table-align-middle thead-light">
                             <thead>
@@ -154,7 +154,9 @@
                                                                         {% endif %}
                                                                     </span>
                                                                     {% if user_is_staff and not training_record.end %}
-                                                                        <span id="due_date_input_group_{{ training_record.id }}" style="display: none;">
+                                                                        <span id="due_date_input_group_{{ training_record.id }}"
+                                                                              class="datetimepicker-container"
+                                                                              style="display: none">
                                                                             <input type="text"
                                                                                    id="due_date_input_{{ training_record.id }}"
                                                                                    class="form-control input-sm due-date-picker text-center"
@@ -248,10 +250,12 @@
                                                                 </td>
                                                                 <td class="text-center">-</td>
                                                                 <td class="text-center">
-                                                                    <input type="text"
-                                                                           id="due_date_{{ training_user.id }}"
-                                                                           class="form-control input-sm due-date-picker text-center"
-                                                                           {% if training_user.available_trainings|length == 1 %}value="{{ training_user.available_trainings.0.default_due_date_from_now|input_date_format }}"{% endif %}>
+                                                                    <div class="datetimepicker-container">
+                                                                        <input type="text"
+                                                                               id="due_date_{{ training_user.id }}"
+                                                                               class="form-control input-sm due-date-picker text-center"
+                                                                               {% if training_user.available_trainings|length == 1 %}value="{{ training_user.available_trainings.0.default_due_date_from_now|input_date_format }}"{% endif %}>
+                                                                    </div>
                                                                 </td>
                                                                 <td class="text-center">-</td>
                                                                 <td class="text-center">-</td>
@@ -417,7 +421,7 @@
 
     $(document).ready(function()
     {
-        $('.due-date-picker').datetimepicker({format: '{{ datetime_input_js_format }}', sideBySide: true, useCurrent: false, widgetParent: '#main-user-training-table'});
+        $('.due-date-picker').datetimepicker({format: '{{ datetime_input_js_format }}', sideBySide: true, useCurrent: false});
     })
 
     function clear_for_retake(record_id)
