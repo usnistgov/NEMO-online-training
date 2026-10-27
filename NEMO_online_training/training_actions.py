@@ -131,7 +131,9 @@ class ExtendAccessOnlineTrainingHandler(OnlineTrainingActionHandler):
             nemo_user.access_expiration = timezone.now() + timedelta(days=extend_by_days)
             nemo_user.save(update_fields=["access_expiration"])
             if identity_service.available:
-                identity_service.update_user(nemo_user.username, nemo_user.domain, nemo_user.access_expiration)
+                identity_service.update_user(
+                    username=nemo_user.username, domain=nemo_user.domain, access_expiration=nemo_user.access_expiration
+                )
 
 
 class RemoveTrainingRequiredOnlineTrainingHandler(OnlineTrainingActionHandler):
