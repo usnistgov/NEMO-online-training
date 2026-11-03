@@ -12,7 +12,6 @@ from NEMO.views.pagination import SortedPaginator
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
-from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -154,6 +153,8 @@ def user_online_trainings(request, training_user_id=None):
             for rec in training_user.trainingrecord_set.all()
             if manageable_ids is None or rec.training_id in manageable_ids
         ]
+        for training_record in training_user.training_records:
+            training_record.user_can_clear_for_retake = training_record.training.user_can_clear_for_retake(user)
 
     dictionary = {
         "page": page,
@@ -580,12 +581,12 @@ def process_training_submission(training_record, user_responses) -> TrainingAtte
     return attempt
 
 
-@user_passes_test(has_online_training_staff_permissions)
+@login_required
 @require_POST
 def clear_for_retake(request, record_id):
     # Retrieve the failed record
     record = get_object_or_404(TrainingRecord, id=record_id)
-    if not can_staff_manage_training(request.user, record.training):
+    if not record.training.user_can_clear_for_retake(request.user):
         return JsonResponse(
             {"success": False, "errors": "You do not have permission to clear this training."}, status=403
         )

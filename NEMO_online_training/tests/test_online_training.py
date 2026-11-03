@@ -3,6 +3,7 @@ from datetime import timedelta
 from NEMO.models import EmailLog, User, UserType
 from NEMO.tests.test_utilities import NEMOTestCaseMixin
 from django.apps import apps
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
@@ -590,6 +591,52 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         response = self.client.post(edit_url, {"due_date": past_date_str})
         self.assertEqual(response.status_code, 400)
         self.assertIn("due_date", response.json()["errors"])
+
+    def test_clear_for_retake_permissions(self):
+        record = TrainingRecord.objects.create(
+            training=self.training,
+            training_user=self.new_student,
+            status=TrainingRecord.TrainingStatus.FAILED,
+            end=timezone.now(),
+        )
+        self.assertEqual(
+            self.training.get_clear_for_retake_permissions_field().to_python(
+                self.training.clear_for_retake_permissions
+            ),
+            ["is_staff", "is_user_office", "is_facility_manager", "is_superuser"],
+        )
+        self.assertTrue(self.training.user_can_clear_for_retake(self.staff_user))
+
+        clear_url = reverse("online_training_clear_for_retake", args=[record.id])
+        self.login_as(self.student_user)
+        response = self.client.post(clear_url)
+        self.assertEqual(response.status_code, 403)
+        response = self.client.get(reverse("online_user_trainings", args=[self.new_student.id]))
+        self.assertNotContains(response, "Clear for retake")
+
+        self.login_as(self.staff_user)
+        response = self.client.post(clear_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"success": True})
+
+        record.status = TrainingRecord.TrainingStatus.FAILED
+        record.save()
+        self.training.clear_for_retake_permissions = ["is_user_office"]
+        self.training.save()
+        response = self.client.post(clear_url)
+        self.assertEqual(response.status_code, 403)
+
+        group = Group.objects.create(name="Training retake approvers")
+        self.training.clear_for_retake_permissions = [str(group.id)]
+        self.training.save()
+        self.student_user.groups.add(group)
+
+        self.login_as(self.student_user)
+        response = self.client.get(reverse("online_user_trainings", args=[self.new_student.id]))
+        self.assertContains(response, "Clear for retake")
+        response = self.client.post(clear_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"success": True})
 
     def test_user_online_trainings_excludes_incomplete_trainings(self):
         """Test that user_online_trainings view excludes incomplete trainings from available_trainings."""

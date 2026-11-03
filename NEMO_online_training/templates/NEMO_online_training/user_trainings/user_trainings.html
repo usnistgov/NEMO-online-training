@@ -189,7 +189,7 @@
                                                                 </td>
                                                                 <td class="text-right">
                                                                     {% if training_record.status == 'FAILED' %}
-                                                                        {% if user_is_staff %}
+                                                                        {% if training_record.user_can_clear_for_retake %}
                                                                             <button class="btn btn-info btn-xs" onclick="clear_for_retake({{ training_record.id }})">Clear for retake</button>
                                                                         {% endif %}
                                                                     {% elif training_record.status != 'COMPLETED' %}
