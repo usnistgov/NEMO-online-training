@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from NEMO_online_training.fields import UserTypeFilterField
-from NEMO_online_training.models import Training, Action, TrainingRecord, TrainingUser
+from NEMO_online_training.models import Training, Action, TrainingAttempt, TrainingRecord, TrainingUser
 from NEMO_online_training.training_actions import action_handlers
 from NEMO_online_training.utilities import (
     ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
@@ -18,6 +18,7 @@ from NEMO_online_training.utilities import (
     ONLINE_TRAINING_ACTION_QUALIFY_TOOL,
     ONLINE_TRAINING_ACTION_SEND_EMAIL,
 )
+from NEMO_online_training.views.online_training import process_training_submission
 
 
 class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
@@ -56,6 +57,34 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
 
     def test_plugin_is_installed(self):
         assert apps.is_installed("NEMO_online_training")
+
+    def test_training_attempt_duration(self):
+        attempt = TrainingAttempt()
+        self.assertIsNone(attempt.duration())
+
+        attempt.start = timezone.now() - timedelta(hours=1, minutes=2, seconds=3)
+        self.assertEqual(attempt.duration(), "ongoing")
+
+        attempt.end = attempt.start + timedelta(hours=1, minutes=2, seconds=3)
+        self.assertEqual(attempt.duration(), "01h 02m 3.0s")
+
+    def test_training_attempt_records_start_and_end_on_submission(self):
+        self.training.answer_key = {"question": "answer"}
+        self.training.passing_score_percentage = 100
+        self.training.save()
+        start = timezone.now() - timedelta(minutes=5)
+        record = TrainingRecord.objects.create(
+            training=self.training,
+            training_user=self.new_student,
+            start=start,
+        )
+
+        attempt = process_training_submission(record, {"question": "answer"})
+
+        self.assertEqual(attempt.start, start)
+        self.assertIsNotNone(attempt.end)
+        self.assertGreaterEqual(attempt.end, attempt.start)
+        self.assertTrue(attempt.passed)
 
     def test_extend_access_all_nemo_users(self):
         """Test that extend access action applies to all NEMO users when 'all_nemo_users' is selected."""

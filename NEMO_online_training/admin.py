@@ -148,8 +148,13 @@ class OnlineTrainingAdmin(admin.ModelAdmin):
 class TrainingAttemptInline(admin.TabularInline):
     model = TrainingAttempt
     extra = 0
-    readonly_fields = ["timestamp", "get_score_percentage", "passed", "get_formatted_responses"]
-    exclude = ["responses", "score_percentage"]
+    readonly_fields = [
+        "duration",
+        "get_score_percentage",
+        "passed",
+        "get_formatted_responses",
+    ]
+    exclude = ["start", "end", "responses", "score_percentage"]
     can_delete = False
 
     # Make the entire inline un-editable so history cannot be altered
@@ -196,9 +201,22 @@ class TrainingRecordAdmin(admin.ModelAdmin):
 
 @admin.register(TrainingAttempt)
 class TrainingAttemptAdmin(admin.ModelAdmin):
-    list_display = ["training_record", "get_score_percentage", "passed", "timestamp"]
-    list_filter = ["passed", "timestamp", "training_record__training"]
-    readonly_fields = ["timestamp", "get_score_percentage", "passed", "get_formatted_responses", "training_record"]
+    list_display = [
+        "training_record",
+        "get_score_percentage",
+        "passed",
+        "duration",
+    ]
+    list_filter = ["passed", "start", "end", "training_record__training"]
+    readonly_fields = [
+        "start",
+        "end",
+        "duration",
+        "get_score_percentage",
+        "passed",
+        "get_formatted_responses",
+        "training_record",
+    ]
     search_fields = [
         "training_record__training_user___first_name",
         "training_record__training_user___last_name",

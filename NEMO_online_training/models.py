@@ -413,10 +413,23 @@ class TrainingRecord(BaseModel):
 
 class TrainingAttempt(models.Model):
     training_record = models.ForeignKey("TrainingRecord", on_delete=models.CASCADE, related_name="attempts")
-    timestamp = models.DateTimeField(auto_now_add=True)
+    start = models.DateTimeField(help_text=_("The date/time the attempt was started"))
+    end = models.DateTimeField(auto_now_add=True, help_text=_("The date/time the attempt was completed"))
     score_percentage = models.FloatField(null=True, blank=True)
     passed = models.BooleanField(default=False)
     responses = models.JSONField(null=True, blank=True, help_text=_("The exact payload submitted by the user."))
+
+    class Meta:
+        ordering = ["-end"]
+
+    def duration(self) -> timedelta | str | None:
+        if self.start and self.end:
+            return format_timedelta(self.end - self.start, "{H:02}h {M:02}m {S:02}s")
+        elif self.start:
+            return "ongoing"
+        return None
+
+    duration.short_description = "Duration"
 
     def get_score_percentage(self) -> str:
         return f"{self.score_percentage:.2f}%" if self.score_percentage is not None else ""

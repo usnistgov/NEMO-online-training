@@ -529,10 +529,10 @@ def check_attempt_eligibility(training_record) -> dict:
 
     # Check cooldown if they have failed previously but still have attempts remaining
     if attempts_taken > 0 and not training_record.end:
-        last_attempt = training_record.attempts.order_by("-timestamp").first()
+        last_attempt = training_record.attempts.order_by("-end").first()
 
         if training.retry_cooldown_minutes and last_attempt:
-            next_allowed_time = last_attempt.timestamp + timedelta(minutes=training.retry_cooldown_minutes)
+            next_allowed_time = last_attempt.end + timedelta(minutes=training.retry_cooldown_minutes)
 
             if timezone.now() < next_allowed_time:
                 return {
@@ -552,7 +552,12 @@ def process_training_submission(training_record, user_responses) -> TrainingAtte
 
     # SCENARIO A: Simple Completion (No Quiz Configured)
     if not graded_training.answer_key or graded_training.passing_score_percentage is None:
-        attempt = TrainingAttempt.objects.create(training_record=training_record, passed=True, responses=user_responses)
+        attempt = TrainingAttempt.objects.create(
+            training_record=training_record,
+            start=training_record.start,
+            passed=True,
+            responses=user_responses,
+        )
         return attempt
 
     # SCENARIO B: Grading Required
@@ -575,7 +580,11 @@ def process_training_submission(training_record, user_responses) -> TrainingAtte
     passed = score >= graded_training.passing_score_percentage
 
     attempt = TrainingAttempt.objects.create(
-        training_record=training_record, score_percentage=score, passed=passed, responses=user_responses
+        training_record=training_record,
+        start=training_record.start,
+        score_percentage=score,
+        passed=passed,
+        responses=user_responses,
     )
 
     return attempt
