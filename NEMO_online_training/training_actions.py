@@ -128,7 +128,7 @@ class ExtendAccessOnlineTrainingHandler(OnlineTrainingActionHandler):
         # If the user is linked to a NEMO user
         if user_training.training_user.nemo_user:
             nemo_user = user_training.training_user.nemo_user
-            nemo_user.access_expiration = timezone.now() + timedelta(days=extend_by_days)
+            nemo_user.access_expiration = timezone.localdate() + timedelta(days=extend_by_days)
             nemo_user.save(update_fields=["access_expiration"])
             if identity_service.available:
                 identity_service.update_user(
