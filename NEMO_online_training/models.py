@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 
 from NEMO.constants import CHAR_FIELD_MEDIUM_LENGTH, CHAR_FIELD_SMALL_LENGTH
@@ -416,6 +417,16 @@ class TrainingAttempt(models.Model):
     score_percentage = models.FloatField(null=True, blank=True)
     passed = models.BooleanField(default=False)
     responses = models.JSONField(null=True, blank=True, help_text=_("The exact payload submitted by the user."))
+
+    def get_score_percentage(self) -> str:
+        return f"{self.score_percentage:.2f}%" if self.score_percentage is not None else ""
+
+    get_score_percentage.short_description = "Score"
+
+    def get_formatted_responses(self):
+        return mark_safe(f"<pre>{json.dumps(self.responses, indent=4)}</pre>")
+
+    get_formatted_responses.short_description = "Responses"
 
 
 def notification_qs_for_training(training: TrainingRecord):
