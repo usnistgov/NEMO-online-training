@@ -692,7 +692,7 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         self.login_as(self.staff_user)
         for training_user, account_kind in ((self.new_only, "Public"), (self.new_student, "NEMO")):
             response = self.client.get(reverse("online_user_trainings", args=[training_user.id]))
-            self.assertContains(
-                response,
-                f'<span class="label label-default" style="margin-left: 5px">{account_kind}</span>',
+            self.assertRegex(
+                response.content.decode(),
+                rf'<span class="label label-default"\s+style="margin-left: 5px">{account_kind}</span>',
             )
