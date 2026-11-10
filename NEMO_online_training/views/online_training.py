@@ -129,7 +129,7 @@ def user_online_trainings(request, training_user_id=None):
             training_users = training_users.filter(all_trainings_completed=False, total_trainings__gt=0)
         elif selected_status == "empty":
             training_users = training_users.filter(total_trainings=0)
-        if selected_user_type == "new":
+        if selected_user_type == "public":
             training_users = training_users.filter(nemo_user__isnull=True)
         elif selected_user_type == "nemo":
             training_users = training_users.filter(nemo_user__isnull=False)
