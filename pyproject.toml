@@ -10,7 +10,6 @@ classifiers = [
     "Environment :: Web Environment",
     "Intended Audience :: Science/Research",
     "Intended Audience :: System Administrators",
-    "License :: Public Domain",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Framework :: Django :: 4.2",
@@ -23,7 +22,7 @@ requires-python = ">=3.10"
 dependencies = [
     "django",
 ]
-license = {file = "LICENSE"}
+license-files = ["LICENSE"]
 
 [project.urls]
 Homepage = "https://github.com/usnistgov/NEMO-online-training"
@@ -42,7 +41,7 @@ include = ["NEMO_online_training*"]
 NEMO_online_training = ["static/**/*", "templates/**/*"]
 
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
