@@ -187,9 +187,13 @@ def training_users_search_results(request):
     training_users: HttpResponse = queryset_search_filter(
         TrainingUser.objects.all(), ["_first_name", "_last_name", "_email"], request
     )
-    return HttpResponse(
-        json.dumps(json.loads(training_users.content) + json.loads(nemo_users.content)), "application/json"
-    )
+    training_user_results = json.loads(training_users.content)
+    for result in training_user_results:
+        result["application_identifier"] = "Public user"
+    nemo_user_results = json.loads(nemo_users.content)
+    for result in nemo_user_results:
+        result["application_identifier"] = "NEMO user"
+    return HttpResponse(json.dumps(training_user_results + nemo_user_results), "application/json")
 
 
 @user_passes_test(has_online_training_staff_permissions)
