@@ -40,8 +40,8 @@ urlpatterns = [
                 ),
                 path(
                     "users/create_nemo_user/<int:training_user_id>/",
-                    online_training.create_nemo_user_from_new_user,
-                    name="online_training_create_nemo_user_from_new_user",
+                    online_training.create_nemo_user_from_public_user,
+                    name="online_training_create_nemo_user_from_public_user",
                 ),
                 path(
                     "users/create_user/",

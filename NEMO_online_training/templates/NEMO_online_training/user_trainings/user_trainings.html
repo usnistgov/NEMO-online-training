@@ -129,7 +129,7 @@
                                         {% if user_is_staff %}
                                             <td class="text-right">
                                                 {% if not training_user.nemo_user and training_user.all_trainings_completed %}
-                                                    {% url 'online_training_create_nemo_user_from_new_user' training_user.id as create_nemo_user_url %}
+                                                    {% url 'online_training_create_nemo_user_from_public_user' training_user.id as create_nemo_user_url %}
                                                     {% button type="save" icon="glyphicon-plus" size="xsmall" submit=False value="Create NEMO user" url=create_nemo_user_url %}
                                                 {% endif %}
                                             </td>

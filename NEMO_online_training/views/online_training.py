@@ -220,7 +220,7 @@ def create_training_user(request):
 
 @login_required
 @require_GET
-def create_nemo_user_from_new_user(request, training_user_id):
+def create_nemo_user_from_public_user(request, training_user_id):
     training_user = get_object_or_404(TrainingUser, pk=training_user_id)
     nemo_new_user_url = reverse("create_or_modify_user", kwargs={"user_id": "new"})
     safe_notes = urllib.parse.quote(training_user.notes)
