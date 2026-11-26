@@ -68,6 +68,46 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         attempt.end = attempt.start + timedelta(hours=1, minutes=2, seconds=3)
         self.assertEqual(attempt.duration(), "01h 02m 3.0s")
 
+    def test_training_attempt_get_wrong_responses(self):
+        self.training.answer_key = {
+            "correct": "yes",
+            "wrong": "no",
+            "multiple": ["a", "b"],
+            "unanswered": "value",
+        }
+        self.training.save()
+        record = TrainingRecord.objects.create(
+            training=self.training,
+            training_user=self.new_student,
+            start=timezone.now(),
+        )
+        attempt = TrainingAttempt.objects.create(
+            training_record=record,
+            start=timezone.now(),
+            responses={"correct": "yes", "wrong": "incorrect", "multiple": ["a"], "extra": "ignored"},
+        )
+
+        self.assertEqual(
+            attempt.get_wrong_responses(),
+            {"wrong": "incorrect", "multiple": ["a"], "unanswered": None},
+        )
+
+    def test_training_attempt_get_wrong_responses_without_answer_key(self):
+        record = TrainingRecord.objects.create(
+            training=self.training,
+            training_user=self.new_student,
+            start=timezone.now(),
+        )
+        attempt = TrainingAttempt.objects.create(
+            training_record=record,
+            start=timezone.now(),
+            responses={"question": "answer"},
+        )
+
+        self.assertEqual(attempt.get_wrong_responses(), {})
+        attempt.responses = None
+        self.assertEqual(attempt.get_wrong_responses(), {})
+
     def test_training_attempt_records_start_and_end_on_submission(self):
         self.training.answer_key = {"question": "answer"}
         self.training.passing_score_percentage = 100

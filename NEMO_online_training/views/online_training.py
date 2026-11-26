@@ -26,7 +26,7 @@ from django.views.static import serve
 from NEMO_online_training.customization import OnlineTrainingCustomization
 from NEMO_online_training.forms import TrainingRecordDueDateForm, TrainingUserForm
 from NEMO_online_training.models import Training, TrainingAttempt, TrainingRecord, TrainingUser
-from NEMO_online_training.utilities import ONLINE_TRAINING_ACTION_QUALIFY_TOOL
+from NEMO_online_training.utilities import ONLINE_TRAINING_ACTION_QUALIFY_TOOL, is_answer_correct
 
 online_training_logger = getLogger(__name__)
 
@@ -570,15 +570,8 @@ def process_training_submission(training_record, user_responses) -> TrainingAtte
     total_questions = len(answer_key)
     for question_key, correct_answer in answer_key.items():
         user_answer = user_responses.get(question_key)
-        if isinstance(correct_answer, list):
-            if not isinstance(user_answer, list):
-                user_answer = [user_answer] if user_answer else []
-
-            if set(str(x).strip() for x in correct_answer) == set(str(x).strip() for x in user_answer):
-                correct_count += 1
-        else:
-            if str(correct_answer).strip() == str(user_answer).strip():
-                correct_count += 1
+        if is_answer_correct(correct_answer, user_answer):
+            correct_count += 1
 
     score = (correct_count / total_questions) * 100 if total_questions > 0 else 100.0
     passed = score >= graded_training.passing_score_percentage

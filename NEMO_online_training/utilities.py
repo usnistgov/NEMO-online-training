@@ -43,3 +43,15 @@ def validate_training_user(cleaned_data: dict[str, Any] | None, pk: int, admin_f
                 errors[field] = _("This field is required.")
     if errors:
         raise ValidationError(errors)
+
+
+def is_answer_correct(correct_answer, user_answer) -> bool:
+    if isinstance(correct_answer, list):
+        if not isinstance(user_answer, list):
+            user_answer = [user_answer] if user_answer else []
+
+        return set(str(answer).strip() for answer in correct_answer) == set(
+            str(answer).strip() for answer in user_answer
+        )
+
+    return str(correct_answer).strip() == str(user_answer).strip()

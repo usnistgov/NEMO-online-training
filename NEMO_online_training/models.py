@@ -16,11 +16,16 @@ from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
 from NEMO_online_training.fields import UserTypeFilterField
-from NEMO_online_training.utilities import ONLINE_TRAINING_EMAIL_CATEGORY, ONLINE_TRAINING_NOTIFICATION_TYPE
+from NEMO_online_training.utilities import (
+    ONLINE_TRAINING_EMAIL_CATEGORY,
+    ONLINE_TRAINING_NOTIFICATION_TYPE,
+    is_answer_correct,
+)
 
 
 class TrainingUser(BaseModel):
@@ -444,7 +449,21 @@ class TrainingAttempt(models.Model):
     def get_formatted_responses(self):
         return mark_safe(f"<pre>{json.dumps(self.responses, indent=4)}</pre>")
 
-    get_formatted_responses.short_description = "Responses"
+    get_formatted_responses.short_description = "All responses"
+
+    def get_wrong_responses(self) -> dict:
+        answer_key = self.training_record.training.answer_key or {}
+        responses = self.responses or {}
+        return {
+            question: responses.get(question)
+            for question, correct_answer in answer_key.items()
+            if not is_answer_correct(correct_answer, responses.get(question))
+        }
+
+    def get_formatted_wrong_responses(self):
+        return format_html("<pre>{}</pre>", json.dumps(self.get_wrong_responses(), indent=4))
+
+    get_formatted_wrong_responses.short_description = "Wrong responses"
 
 
 def notification_qs_for_training(training: TrainingRecord):

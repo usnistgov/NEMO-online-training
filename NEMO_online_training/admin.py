@@ -153,7 +153,7 @@ class TrainingAttemptInline(admin.TabularInline):
         "duration",
         "get_score_percentage",
         "passed",
-        "get_formatted_responses",
+        "get_formatted_wrong_responses",
     ]
     exclude = ["start", "end", "responses", "score_percentage"]
     can_delete = False
@@ -206,8 +206,10 @@ class TrainingAttemptAdmin(admin.ModelAdmin):
         "training_record",
         "get_score_percentage",
         "passed",
+        "get_wrong_responses_count",
         "duration",
     ]
+    list_select_related = ["training_record__training", "training_record__training_user__nemo_user"]
     list_filter = ["passed", "start", "end", "training_record__training"]
     readonly_fields = [
         "start",
@@ -215,6 +217,7 @@ class TrainingAttemptAdmin(admin.ModelAdmin):
         "duration",
         "get_score_percentage",
         "passed",
+        "get_formatted_wrong_responses",
         "get_formatted_responses",
         "training_record",
     ]
@@ -223,6 +226,10 @@ class TrainingAttemptAdmin(admin.ModelAdmin):
         "training_record__training_user___last_name",
     ]
     exclude = ["responses", "score_percentage"]
+
+    @admin.display(description="Wrong responses")
+    def get_wrong_responses_count(self, obj: TrainingAttempt) -> int:
+        return len(obj.get_wrong_responses())
 
     # Prevent direct creation/editing of attempts
     def has_add_permission(self, request):
