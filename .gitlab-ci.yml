@@ -32,6 +32,14 @@ Test NEMO python 3.13:
   <<: *test
   image: python:3.13-slim
 
+Test NEMO python 3.14:
+  <<: *test
+  image: python:3.14-slim
+
+Test NEMO python 3.15:
+  <<: *test
+  image: python:3.15-slim
+
 Test NEMO-CE python 3.11:
   <<: *test-ce
   image: python:3.11-slim
