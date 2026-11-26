@@ -12,6 +12,7 @@ from NEMO.views.pagination import SortedPaginator
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+from django.db import transaction
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -25,7 +26,7 @@ from django.views.static import serve
 
 from NEMO_online_training.customization import OnlineTrainingCustomization
 from NEMO_online_training.forms import TrainingRecordDueDateForm, TrainingUserForm
-from NEMO_online_training.models import Training, TrainingAttempt, TrainingRecord, TrainingUser
+from NEMO_online_training.models import Training, TrainingAttempt, TrainingRecord, TrainingRecordRetake, TrainingUser
 from NEMO_online_training.utilities import ONLINE_TRAINING_ACTION_QUALIFY_TOOL, is_answer_correct
 
 online_training_logger = getLogger(__name__)
@@ -596,10 +597,15 @@ def clear_for_retake(request, record_id):
         return JsonResponse(
             {"success": False, "errors": "You do not have permission to clear this training."}, status=403
         )
+    comment = (request.POST.get("comment") or "").strip()
+    if not comment:
+        return JsonResponse({"success": False, "errors": "A comment is required."}, status=400)
     # Update the flag
     if record.status == TrainingRecord.TrainingStatus.FAILED:
-        record.status = TrainingRecord.TrainingStatus.IN_PROGRESS
-        record.save()
+        with transaction.atomic():
+            record.status = TrainingRecord.TrainingStatus.IN_PROGRESS
+            record.save()
+            TrainingRecordRetake.objects.create(training_record=record, cleared_by=request.user, comment=comment)
 
     return JsonResponse({"success": True})
 

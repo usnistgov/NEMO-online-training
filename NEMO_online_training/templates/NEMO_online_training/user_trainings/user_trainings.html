@@ -451,18 +451,28 @@
 
     function clear_for_retake(record_id)
     {
-        if (confirm("Are you sure you want to clear this user to retake this training? They will be able to enroll again if enabled.")) {
-            ajax_post(
-                build_django_url("{% url 'online_training_clear_for_retake' '99999' %}", ["99999"], [record_id]),
-                {},
-                function() {
-                    location.reload();
-                },
-                function() {
-                    alert("Error: Unable to clear training for retake.");
-                }
-            );
+        const comment = prompt("Why are you clearing this user to retake the training?");
+        if (comment === null)
+        {
+            return;
         }
+        if (!comment.trim())
+        {
+            alert("A comment is required.");
+            return;
+        }
+
+        ajax_post(
+            build_django_url("{% url 'online_training_clear_for_retake' '99999' %}", ["99999"], [record_id]),
+            {comment: comment},
+            function() {
+                location.reload();
+            },
+            function(response) {
+                const error = response.responseJSON && response.responseJSON.errors;
+                alert(error || "Error: Unable to clear training for retake.");
+            }
+        );
     }
     </script>
 {% endblock %}

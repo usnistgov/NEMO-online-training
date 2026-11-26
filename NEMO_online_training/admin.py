@@ -9,7 +9,14 @@ from django.db import models
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
-from NEMO_online_training.models import Action, Training, TrainingAttempt, TrainingRecord, TrainingUser
+from NEMO_online_training.models import (
+    Action,
+    Training,
+    TrainingAttempt,
+    TrainingRecord,
+    TrainingRecordRetake,
+    TrainingUser,
+)
 from NEMO_online_training.training_actions import action_handlers
 from NEMO_online_training.utilities import validate_training_user
 
@@ -163,6 +170,17 @@ class TrainingAttemptInline(admin.TabularInline):
         return False
 
 
+class TrainingRecordRetakeInline(admin.TabularInline):
+    model = TrainingRecordRetake
+    extra = 0
+    readonly_fields = ["cleared_on", "cleared_by", "comment"]
+    fields = readonly_fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(TrainingRecord)
 class TrainingRecordAdmin(admin.ModelAdmin):
     list_display = [
@@ -180,7 +198,7 @@ class TrainingRecordAdmin(admin.ModelAdmin):
     list_filter = ["training", "status"]
     date_hierarchy = "creation_time"
     readonly_fields = ["creation_time", "last_updated"]
-    inlines = [TrainingAttemptInline]
+    inlines = [TrainingAttemptInline, TrainingRecordRetakeInline]
     search_fields = [
         "training_user___first_name",
         "training_user___last_name",

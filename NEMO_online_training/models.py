@@ -466,6 +466,16 @@ class TrainingAttempt(models.Model):
     get_formatted_wrong_responses.short_description = "Wrong responses"
 
 
+class TrainingRecordRetake(models.Model):
+    training_record = models.ForeignKey(TrainingRecord, on_delete=models.CASCADE, related_name="retakes")
+    cleared_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    cleared_on = models.DateTimeField(auto_now_add=True)
+    comment = models.TextField()
+
+    class Meta:
+        ordering = ["-cleared_on"]
+
+
 def notification_qs_for_training(training: TrainingRecord):
     ct = ContentType.objects.get_for_model(TrainingRecord)
     return Notification.objects.filter(

@@ -10,7 +10,14 @@ from django.urls import reverse
 from django.utils import timezone
 
 from NEMO_online_training.fields import UserTypeFilterField
-from NEMO_online_training.models import Training, Action, TrainingAttempt, TrainingRecord, TrainingUser
+from NEMO_online_training.models import (
+    Action,
+    Training,
+    TrainingAttempt,
+    TrainingRecord,
+    TrainingRecordRetake,
+    TrainingUser,
+)
 from NEMO_online_training.training_actions import action_handlers
 from NEMO_online_training.utilities import (
     ONLINE_TRAINING_ACTION_EXTEND_ACCESS,
@@ -685,8 +692,27 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
 
         self.login_as(self.staff_user)
         response = self.client.post(clear_url)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["errors"], "A comment is required.")
+        response = self.client.post(clear_url, {"comment": "   "})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(TrainingRecordRetake.objects.count(), 0)
+
+        comment = "Reviewed the failed attempt with the user."
+        response = self.client.post(clear_url, {"comment": comment})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"success": True})
+        retake_log = TrainingRecordRetake.objects.get(training_record=record)
+        self.assertEqual(retake_log.cleared_by, self.staff_user)
+        self.assertEqual(retake_log.comment, comment)
+        self.assertIsNotNone(retake_log.cleared_on)
+        record.refresh_from_db()
+        self.assertEqual(record.status, TrainingRecord.TrainingStatus.IN_PROGRESS)
+
+        # A repeated request for a non-failed record does not create another log entry.
+        response = self.client.post(clear_url, {"comment": "Repeated request"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(TrainingRecordRetake.objects.count(), 1)
 
         record.status = TrainingRecord.TrainingStatus.FAILED
         record.save()
@@ -703,9 +729,11 @@ class OnlineTrainingTest(NEMOTestCaseMixin, TestCase):
         self.login_as(self.student_user)
         response = self.client.get(reverse("online_user_trainings", args=[self.new_student.id]))
         self.assertContains(response, "Clear for retake")
-        response = self.client.post(clear_url)
+        response = self.client.post(clear_url, {"comment": "Approved by group"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"success": True})
+        group_log = TrainingRecordRetake.objects.get(training_record=record, cleared_by=self.student_user)
+        self.assertEqual(group_log.comment, "Approved by group")
 
     def test_user_online_trainings_excludes_incomplete_trainings(self):
         """Test that user_online_trainings view excludes incomplete trainings from available_trainings."""
